@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Stitchloom - Cross Stitch Converter</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700&family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+Symbols+2&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">Cross stitch planner</p>
+          <h1>Stitchloom</h1>
+          <p class="lede">
+            Turn any photo into a stitch-ready pattern. Upload an image, pick a palette, and
+            limit the color count for a clean thread plan.
+          </p>
+        </div>
+        <div class="hero-card">
+          <p class="hero-title">Workflow</p>
+          <ol>
+            <li>Upload a JPG/PNG</li>
+            <li>Set stitch grid + palette</li>
+            <li>Export PNG or Print to PDF</li>
+          </ol>
+        </div>
+      </header>
+
+      <main class="workspace">
+        <section class="panel controls">
+          <h2>Inputs</h2>
+          <div class="control-group">
+            <h3 class="control-group-title">Image</h3>
+            <label class="file-label has-tooltip" for="imageUpload" data-tip="Upload a local JPG or PNG to convert into a pattern.">
+              <input id="imageUpload" type="file" accept="image/*" />
+              <span>Choose image</span>
+            </label>
+            <p class="hint" id="fileHint">Upload a local image. URL loading is disabled.</p>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Palette & symbols</h3>
+            <label class="field has-tooltip" data-tip="Select the thread palette used to map colors.">
+              <span>Palette</span>
+              <select id="paletteSelect"></select>
+            </label>
+            <label class="field">
+              <span class="has-tooltip" data-tip="Maximum number of thread colors used in the pattern.">Limit colors</span>
+              <input id="colorLimit" type="range" min="3" max="32" value="10" />
+              <div class="range-meta">
+                <span id="colorLimitValue">10</span>
+                <span class="muted">colors</span>
+              </div>
+            </label>
+            <label class="field">
+              <span class="has-tooltip" data-tip="Adds pixel-level blending between colors for smoother gradients.">Dither strength</span>
+              <input id="ditherStrength" type="range" min="0" max="100" value="0" />
+              <div class="range-meta">
+                <span id="ditherStrengthValue">0</span>
+                <span class="muted">pixel blending</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Grid size</h3>
+            <div class="three-col fabric-grid">
+              <label class="field">
+                <span class="has-tooltip" data-tip="Final stitch count across the width.">Grid width (stitches)</span>
+                <input id="gridWidth" type="number" min="10" max="1000" value="80" />
+              </label>
+              <label class="field">
+                <span class="has-tooltip" data-tip="Final stitch count across the height.">Grid height (stitches)</span>
+                <input id="gridHeight" type="number" min="10" max="1000" value="80" />
+              </label>
+            </div>
+            <div class="inline">
+              <label class="check has-tooltip" data-tip="Keep the original image aspect ratio when changing size.">
+                <input id="lockAspect" type="checkbox" checked />
+                <span>Lock aspect ratio</span>
+              </label>
+              <button class="ghost has-tooltip" id="useOriginal" data-tip="Reset grid size to the image’s original pixel dimensions.">
+                Use original size
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Stitch rendering</h3>
+            <div class="three-col">
+              <label class="field">
+                <span class="has-tooltip" data-tip="Preview stitch size in pixels.">Stitch size (px)</span>
+                <input id="stitchSize" type="number" min="4" max="30" value="10" />
+              </label>
+              <label class="field">
+                <span class="has-tooltip" data-tip="Softens the image before color mapping.">Blur strength</span>
+                <input id="blurStrength" type="range" min="0" max="4" value="1" step="0.5" />
+                <div class="range-meta">
+                  <span id="blurValue">1</span>
+                  <span class="muted">px</span>
+                </div>
+              </label>
+            </div>
+            <label class="check has-tooltip" data-tip="Smooths the image before color mapping.">
+              <input id="smoothing" type="checkbox" checked />
+              <span>Enable smoothing</span>
+            </label>
+            <label class="check has-tooltip" data-tip="Disables blur and smoothing for crisp pixel art.">
+              <input id="pixelArtMode" type="checkbox" />
+              <span>Pixel art mode (no blur, no smoothing)</span>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Accent colors</h3>
+            <div class="two-col">
+              <label class="field">
+                <span class="has-tooltip" data-tip="Reserve slots for high-saturation colors.">Accent slots</span>
+                <input id="accentSlots" type="number" min="0" max="4" value="2" />
+                <p class="hint">Reserve colors for strong accents.</p>
+              </label>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Fabric sizing</h3>
+            <div class="three-col">
+              <label class="field">
+                <span class="has-tooltip" data-tip="Fabric type presets for common stitch counts.">Fabric type</span>
+                <select id="fabricType"></select>
+              </label>
+              <label class="field">
+                <span class="has-tooltip" data-tip="Stitches per inch or cm for your fabric.">Fabric count</span>
+                <select id="fabricCount"></select>
+              </label>
+              <label class="field">
+                <span class="has-tooltip" data-tip="Use stitches per inch or per cm.">Count unit</span>
+                <select id="fabricUnit">
+                  <option value="inch">Stitches per inch</option>
+                  <option value="cm">Stitches per cm</option>
+                </select>
+              </label>
+            </div>
+            <div class="size-readout">
+              <div>
+                <span class="muted">Estimated size</span>
+                <strong id="sizeCm">0 cm x 0 cm</strong>
+              </div>
+              <div>
+                <span class="muted">In inches</span>
+                <strong id="sizeIn">0 in x 0 in</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">Export</h3>
+            <div class="inline">
+              <button id="printPdf" class="ghost has-tooltip" data-tip="Download the stitched pattern as a multi-page PDF.">
+                Download PDF
+              </button>
+              <button id="copySettingsUrl" class="ghost has-tooltip" data-tip="Share the current settings as a URL.">
+                Copy settings URL
+              </button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <h3 class="control-group-title">PDF output</h3>
+            <label class="field">
+              <span class="has-tooltip" data-tip="Choose how stitches are rendered in the PDF.">PDF pattern mode</span>
+              <select id="patternMode">
+                <option value="color-symbols">Color + symbols</option>
+                <option value="symbols">Symbols only</option>
+                <option value="color">Color only</option>
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section class="panel preview">
+          <div class="preview-header">
+            <h2>Preview</h2>
+            <p class="hint" id="status">Upload an image to begin.</p>
+          </div>
+          <div class="canvas-stack">
+            <div>
+              <h3>Source</h3>
+              <canvas id="sourceCanvas" width="320" height="240"></canvas>
+            </div>
+            <div>
+              <h3>Cross stitch</h3>
+              <canvas id="outputCanvas" width="320" height="240"></canvas>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button id="refresh" class="primary">Update preview</button>
+          </div>
+        </section>
+
+        <section class="panel legend">
+          <h2>Legend</h2>
+          <div id="legendList" class="legend-list">
+            <p class="hint">Legend will populate after conversion.</p>
+          </div>
+        </section>
+      </main>
+
+      <div class="modal" id="paletteSearchModal" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="paletteSearchTitle">
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Palette search</p>
+              <h2 id="paletteSearchTitle">Replace color</h2>
+            </div>
+            <button class="ghost" id="paletteSearchClose" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <label class="field">
+              <span>Search by name, #hex, or @code</span>
+              <input id="paletteSearchInput" type="text" placeholder="rose, #ffd4c0, @310" />
+            </label>
+            <div class="modal-meta">
+              <span class="hint" id="paletteSearchCount">0 matches</span>
+            </div>
+            <div class="search-results" id="paletteSearchResults"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="dmc-palette.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
+    <script src="pdf-export.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
