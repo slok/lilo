@@ -1,0 +1,1186 @@
+const glyphSymbols = [
+  "♠",
+  "♥",
+  "♦",
+  "♣",
+  "⬤",
+  "⬟",
+  "☘",
+  "■",
+  "▣",
+  "◆",
+  "◇",
+  "▲",
+  "✪",
+  "✖",
+  "⬅",
+  "☃",
+  "◫",
+  "✦",
+  "⛊",
+  "⭘",
+  "✷",
+  "◩",
+  "✹",
+  "✇",
+  "✻",
+  "◁",
+  "✚",
+  "◑",
+  "☂",
+  "⛁",
+  "⚡",
+  "⊙",
+];
+
+const fabricCatalog = [
+  {
+    id: "aida",
+    name: "Aida",
+    counts: [12, 14, 16, 18, 20, 22, 24, 26, 28],
+  },
+  {
+    id: "evenweave",
+    name: "Evenweave",
+    counts: [20, 22, 24, 26, 28, 32, 36],
+  },
+  {
+    id: "linen",
+    name: "Linen",
+    counts: [20, 22, 24, 26, 28, 32, 36],
+  },
+];
+
+const defaultPaletteId = typeof dmcPalette !== "undefined" ? dmcPalette.id : "";
+
+const paletteCatalog = typeof dmcPalette !== "undefined" ? [dmcPalette] : [];
+
+const state = {
+  image: null,
+  imageUrl: null,
+  imageWidth: 0,
+  imageHeight: 0,
+  aspectRatio: 1,
+  gridWidth: 80,
+  gridHeight: 80,
+  stitchSize: 10,
+  colorLimit: 10,
+  ditherStrength: 0,
+  paletteId: defaultPaletteId,
+  blurStrength: 1,
+  smoothing: true,
+  pixelArtMode: false,
+  accentSlots: 2,
+  fabricType: "aida",
+  fabricCount: 14,
+  fabricUnit: "inch",
+  patternMode: "color-symbols",
+  hiddenColors: [],
+  mappedPixels: null,
+  mappedPalette: [],
+  counts: [],
+  symbols: [],
+  activeReplaceIndex: null,
+  prevSmoothing: true,
+  prevBlurStrength: 1,
+};
+
+const elements = {
+  imageUpload: document.getElementById("imageUpload"),
+  paletteSelect: document.getElementById("paletteSelect"),
+  colorLimit: document.getElementById("colorLimit"),
+  colorLimitValue: document.getElementById("colorLimitValue"),
+  ditherStrength: document.getElementById("ditherStrength"),
+  ditherStrengthValue: document.getElementById("ditherStrengthValue"),
+  gridWidth: document.getElementById("gridWidth"),
+  gridHeight: document.getElementById("gridHeight"),
+  lockAspect: document.getElementById("lockAspect"),
+  useOriginal: document.getElementById("useOriginal"),
+  stitchSize: document.getElementById("stitchSize"),
+  blurStrength: document.getElementById("blurStrength"),
+  blurValue: document.getElementById("blurValue"),
+  smoothing: document.getElementById("smoothing"),
+  pixelArtMode: document.getElementById("pixelArtMode"),
+  accentSlots: document.getElementById("accentSlots"),
+  fabricType: document.getElementById("fabricType"),
+  fabricCount: document.getElementById("fabricCount"),
+  fabricUnit: document.getElementById("fabricUnit"),
+  patternMode: document.getElementById("patternMode"),
+  sizeCm: document.getElementById("sizeCm"),
+  sizeIn: document.getElementById("sizeIn"),
+  refresh: document.getElementById("refresh"),
+  printPdf: document.getElementById("printPdf"),
+  copySettingsUrl: document.getElementById("copySettingsUrl"),
+  sourceCanvas: document.getElementById("sourceCanvas"),
+  outputCanvas: document.getElementById("outputCanvas"),
+  legendList: document.getElementById("legendList"),
+  status: document.getElementById("status"),
+  paletteSearchModal: document.getElementById("paletteSearchModal"),
+  paletteSearchInput: document.getElementById("paletteSearchInput"),
+  paletteSearchResults: document.getElementById("paletteSearchResults"),
+  paletteSearchCount: document.getElementById("paletteSearchCount"),
+  paletteSearchClose: document.getElementById("paletteSearchClose"),
+};
+
+const sourceCtx = elements.sourceCanvas.getContext("2d");
+const outputCtx = elements.outputCanvas.getContext("2d");
+
+const offscreen = document.createElement("canvas");
+const offscreenCtx = offscreen.getContext("2d");
+
+const resized = document.createElement("canvas");
+const resizedCtx = resized.getContext("2d");
+
+const clampNumber = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const hexToRgb = (hex) => {
+  const normalized = hex.replace("#", "");
+  const bigint = parseInt(normalized, 16);
+  return {
+    r: (bigint >> 16) & 255,
+    g: (bigint >> 8) & 255,
+    b: bigint & 255,
+  };
+};
+
+const distanceSq = (a, b) => {
+  const dr = a.r - b.r;
+  const dg = a.g - b.g;
+  const db = a.b - b.b;
+  return dr * dr + dg * dg + db * db;
+};
+
+const rgbToLab = (rgb) => {
+  const sr = rgb.r / 255;
+  const sg = rgb.g / 255;
+  const sb = rgb.b / 255;
+
+  const linear = (v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  const r = linear(sr);
+  const g = linear(sg);
+  const b = linear(sb);
+
+  const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+  const y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.0;
+  const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+
+  const f = (v) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116);
+  const fx = f(x);
+  const fy = f(y);
+  const fz = f(z);
+
+  return {
+    l: 116 * fy - 16,
+    a: 500 * (fx - fy),
+    b: 200 * (fy - fz),
+  };
+};
+
+const labDistanceSq = (a, b) => {
+  const dl = a.l - b.l;
+  const da = a.a - b.a;
+  const db = a.b - b.b;
+  return dl * dl + da * da + db * db;
+};
+
+const buildLimitedPalette = (data, paletteColors, limit, accentSlots) => {
+  const buckets = new Map();
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha < 10) continue;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
+    const existing = buckets.get(key) || { count: 0, sumR: 0, sumG: 0, sumB: 0 };
+    existing.count += 1;
+    existing.sumR += r;
+    existing.sumG += g;
+    existing.sumB += b;
+    buckets.set(key, existing);
+  }
+
+  const totalPixels = Math.floor(data.length / 4);
+  const minCount = Math.max(20, Math.round(totalPixels * 0.001));
+  const bucketList = Array.from(buckets.values())
+    .map((bucket) => {
+      const avg = {
+        r: Math.round(bucket.sumR / bucket.count),
+        g: Math.round(bucket.sumG / bucket.count),
+        b: Math.round(bucket.sumB / bucket.count),
+      };
+      const lab = rgbToLab(avg);
+      const chroma = Math.sqrt(lab.a * lab.a + lab.b * lab.b);
+      return { ...bucket, avg, lab, chroma };
+    })
+    .sort((a, b) => b.count - a.count);
+
+  const selected = [];
+  const selectedIndices = new Set();
+
+  const addClosestPalette = (lab) => {
+    let bestIndex = 0;
+    let bestDistance = Infinity;
+    for (let j = 0; j < paletteColors.length; j += 1) {
+      const dist = labDistanceSq(lab, paletteColors[j].lab);
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestIndex = j;
+      }
+    }
+    if (!selectedIndices.has(bestIndex)) {
+      selectedIndices.add(bestIndex);
+      selected.push(paletteColors[bestIndex]);
+    }
+  };
+
+  const slots = Math.min(accentSlots, limit);
+  const accentChroma = 20;
+  const accentBuckets = bucketList
+    .filter((bucket) => bucket.count >= minCount && bucket.chroma >= accentChroma)
+    .sort((a, b) => b.chroma - a.chroma);
+
+  for (const bucket of accentBuckets) {
+    addClosestPalette(bucket.lab);
+    if (selected.length >= slots) break;
+  }
+
+  for (const bucket of bucketList) {
+    if (selected.length >= limit) break;
+    addClosestPalette(bucket.lab);
+  }
+
+  if (selected.length < limit) {
+    for (let j = 0; j < paletteColors.length; j += 1) {
+      if (!selectedIndices.has(j)) {
+        selectedIndices.add(j);
+        selected.push(paletteColors[j]);
+      }
+      if (selected.length >= limit) break;
+    }
+  }
+
+  return selected.slice(0, limit);
+};
+
+const setStatus = (message) => {
+  elements.status.textContent = message;
+};
+
+const updateLegend = () => {
+  elements.legendList.innerHTML = "";
+  if (!state.counts.length) {
+    const empty = document.createElement("p");
+    empty.className = "hint";
+    empty.textContent = "Legend will populate after conversion.";
+    elements.legendList.appendChild(empty);
+    return;
+  }
+
+  state.counts.forEach((count, index) => {
+    const color = state.mappedPalette[index];
+    if (!color) return;
+    const symbol = state.symbols[index] || "";
+    const hidden = isHiddenColor(color);
+
+    const item = document.createElement("div");
+    item.className = "legend-item";
+    if (hidden) item.classList.add("is-hidden");
+
+    const symbolBadge = document.createElement("div");
+    symbolBadge.className = "symbol-badge";
+    symbolBadge.textContent = symbol;
+
+    const swatch = document.createElement("div");
+    swatch.className = "swatch";
+    swatch.style.background = color.hex;
+
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = color.name;
+    const meta = document.createElement("div");
+    meta.className = "legend-meta";
+    const code = color.code ? ` · ${color.code}` : "";
+    meta.textContent = `${count} stitches${code}`;
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    item.appendChild(symbolBadge);
+    item.appendChild(swatch);
+    item.appendChild(info);
+    const actions = document.createElement("div");
+    actions.className = "legend-actions";
+    const visibility = document.createElement("button");
+    visibility.className = "legend-visibility";
+    visibility.type = "button";
+    visibility.dataset.index = String(index);
+    visibility.textContent = hidden ? "Show" : "Hide";
+    actions.appendChild(visibility);
+    const action = document.createElement("button");
+    action.className = "legend-action";
+    action.type = "button";
+    action.dataset.index = String(index);
+    action.textContent = "Replace";
+    actions.appendChild(action);
+    item.appendChild(actions);
+    elements.legendList.appendChild(item);
+  });
+};
+
+const getPalette = () => paletteCatalog.find((item) => item.id === state.paletteId);
+
+const getSymbolSet = () => glyphSymbols;
+
+const normalizeHex = (hex) => hex.toLowerCase();
+
+const getHiddenSet = () => new Set(state.hiddenColors.map(normalizeHex));
+
+const isHiddenColor = (color) => getHiddenSet().has(normalizeHex(color.hex));
+
+const toggleHiddenColor = (color) => {
+  const hex = normalizeHex(color.hex);
+  const hiddenSet = getHiddenSet();
+  if (hiddenSet.has(hex)) {
+    hiddenSet.delete(hex);
+  } else {
+    hiddenSet.add(hex);
+  }
+  state.hiddenColors = Array.from(hiddenSet);
+};
+
+const normalizeQuery = (query) => query.trim().toLowerCase();
+
+const buildSearchResults = (query) => {
+  const palette = getPalette();
+  if (!palette) return [];
+  const cleaned = normalizeQuery(query);
+  if (!cleaned) return palette.colors;
+
+  if (cleaned.startsWith("#")) {
+    const hexQuery = cleaned;
+    return palette.colors.filter((color) => color.hex.toLowerCase().startsWith(hexQuery));
+  }
+  if (cleaned.startsWith("@")) {
+    const codeQuery = cleaned.slice(1);
+    return palette.colors.filter((color) => color.code && color.code.toLowerCase().includes(codeQuery));
+  }
+  return palette.colors.filter((color) => color.name.toLowerCase().includes(cleaned));
+};
+
+const openPaletteSearch = (index) => {
+  if (!state.mappedPalette.length) return;
+  state.activeReplaceIndex = index;
+  elements.paletteSearchInput.value = "";
+  renderPaletteSearch("");
+  elements.paletteSearchModal.classList.add("open");
+  elements.paletteSearchModal.setAttribute("aria-hidden", "false");
+  elements.paletteSearchInput.focus();
+};
+
+const closePaletteSearch = () => {
+  elements.paletteSearchModal.classList.remove("open");
+  elements.paletteSearchModal.setAttribute("aria-hidden", "true");
+  state.activeReplaceIndex = null;
+};
+
+const renderPaletteSearch = (query) => {
+  const results = buildSearchResults(query);
+  elements.paletteSearchResults.innerHTML = "";
+  const countLabel = results.length === 1 ? "1 match" : `${results.length} matches`;
+  elements.paletteSearchCount.textContent = countLabel;
+
+  const maxResults = 120;
+  results.slice(0, maxResults).forEach((color) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "search-result";
+    item.dataset.code = color.code || "";
+    item.dataset.name = color.name || "";
+    item.dataset.hex = color.hex;
+
+    const swatch = document.createElement("div");
+    swatch.className = "swatch";
+    swatch.style.background = color.hex;
+
+    const info = document.createElement("div");
+    const title = document.createElement("strong");
+    title.textContent = color.name;
+    const meta = document.createElement("div");
+    meta.className = "result-meta";
+    const code = color.code ? `Code ${color.code}` : "";
+    meta.textContent = `${color.hex.toUpperCase()}${code ? ` · ${code}` : ""}`;
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const action = document.createElement("span");
+    action.className = "muted";
+    action.textContent = "Select";
+
+    item.appendChild(swatch);
+    item.appendChild(info);
+    item.appendChild(action);
+    elements.paletteSearchResults.appendChild(item);
+  });
+};
+
+const applyPaletteReplacement = (color) => {
+  if (state.activeReplaceIndex === null) return;
+  const paletteColor = {
+    ...color,
+    rgb: hexToRgb(color.hex),
+  };
+  paletteColor.lab = rgbToLab(paletteColor.rgb);
+
+  const existingIndex = state.mappedPalette.findIndex(
+    (entry, index) => index !== state.activeReplaceIndex && entry && entry.hex === color.hex
+  );
+  const currentSymbol = state.symbols[state.activeReplaceIndex] || "?";
+  const symbol = existingIndex >= 0 ? state.symbols[existingIndex] || currentSymbol : currentSymbol;
+  paletteColor.symbol = symbol;
+
+  state.mappedPalette[state.activeReplaceIndex] = paletteColor;
+  state.symbols[state.activeReplaceIndex] = symbol;
+  renderOutput();
+  updateLegend();
+  closePaletteSearch();
+};
+
+const formatSize = (value) => {
+  if (!Number.isFinite(value)) return "0";
+  const rounded = Math.round(value * 10) / 10;
+  return rounded.toFixed(1);
+};
+
+const readNumberParam = (params, key) => {
+  const value = Number(params.get(key));
+  return Number.isFinite(value) ? value : null;
+};
+
+const readBoolParam = (params, key) => {
+  const value = params.get(key);
+  if (value === null) return null;
+  return value === "1" || value.toLowerCase() === "true";
+};
+
+const readStringParam = (params, key) => {
+  const value = params.get(key);
+  return value ? value : null;
+};
+
+const applyPixelArtMode = (enabled) => {
+  if (enabled) {
+    elements.smoothing.checked = false;
+    elements.blurStrength.value = 0;
+    elements.smoothing.disabled = true;
+    elements.blurStrength.disabled = true;
+  } else {
+    elements.smoothing.checked = state.prevSmoothing;
+    elements.blurStrength.value = state.prevBlurStrength;
+    elements.smoothing.disabled = false;
+    elements.blurStrength.disabled = false;
+  }
+};
+
+const applySettingsFromUrl = () => {
+  const params = new URLSearchParams(window.location.search);
+  if (!params.toString()) return;
+
+  const paletteId = readStringParam(params, "palette");
+  if (paletteId && paletteCatalog.some((palette) => palette.id === paletteId)) {
+    elements.paletteSelect.value = paletteId;
+    state.paletteId = paletteId;
+  }
+
+
+  const hiddenColors = readStringParam(params, "hiddenColors");
+  if (hiddenColors) {
+    const items = hiddenColors
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => (value.startsWith("#") ? value : `#${value}`));
+    state.hiddenColors = items;
+  }
+
+  const gridWidth = readNumberParam(params, "gridWidth");
+  if (gridWidth !== null) elements.gridWidth.value = gridWidth;
+
+  const gridHeight = readNumberParam(params, "gridHeight");
+  if (gridHeight !== null) elements.gridHeight.value = gridHeight;
+
+  const stitchSize = readNumberParam(params, "stitchSize");
+  if (stitchSize !== null) elements.stitchSize.value = stitchSize;
+
+  const colorLimit = readNumberParam(params, "colorLimit");
+  if (colorLimit !== null) elements.colorLimit.value = colorLimit;
+
+  const ditherStrength = readNumberParam(params, "ditherStrength");
+  if (ditherStrength !== null) elements.ditherStrength.value = ditherStrength;
+
+  const blurStrength = readNumberParam(params, "blurStrength");
+  if (blurStrength !== null) elements.blurStrength.value = blurStrength;
+
+  const accentSlots = readNumberParam(params, "accentSlots");
+  if (accentSlots !== null) elements.accentSlots.value = accentSlots;
+
+  const fabricType = readStringParam(params, "fabricType");
+  if (fabricType && fabricCatalog.some((fabric) => fabric.id === fabricType)) {
+    elements.fabricType.value = fabricType;
+    state.fabricType = fabricType;
+    populateFabricCounts();
+  }
+
+  const fabricCount = readNumberParam(params, "fabricCount");
+  if (fabricCount !== null) elements.fabricCount.value = fabricCount;
+
+  const fabricUnit = readStringParam(params, "fabricUnit");
+  if (fabricUnit && (fabricUnit === "inch" || fabricUnit === "cm")) {
+    elements.fabricUnit.value = fabricUnit;
+  }
+
+  const patternMode = readStringParam(params, "patternMode");
+  if (patternMode && ["color-symbols", "symbols", "color"].includes(patternMode)) {
+    elements.patternMode.value = patternMode;
+  }
+
+  const smoothing = readBoolParam(params, "smoothing");
+  if (smoothing !== null) elements.smoothing.checked = smoothing;
+
+  const pixelArtMode = readBoolParam(params, "pixelArtMode");
+  if (pixelArtMode !== null) elements.pixelArtMode.checked = pixelArtMode;
+
+  const lockAspect = readBoolParam(params, "lockAspect");
+  if (lockAspect !== null) elements.lockAspect.checked = lockAspect;
+
+  if (elements.pixelArtMode.checked) {
+    state.prevSmoothing = elements.smoothing.checked;
+    state.prevBlurStrength = Number(elements.blurStrength.value) || 0;
+    applyPixelArtMode(true);
+  }
+
+  syncStateFromInputs();
+  applySymbolPresetToMapped();
+  updateLegend();
+  setStatus("Settings loaded from URL.");
+};
+
+const updateFabricSizes = () => {
+  const count = state.fabricCount || 1;
+  let widthIn = 0;
+  let heightIn = 0;
+  let widthCm = 0;
+  let heightCm = 0;
+
+  if (state.fabricUnit === "cm") {
+    widthCm = state.gridWidth / count;
+    heightCm = state.gridHeight / count;
+    widthIn = widthCm / 2.54;
+    heightIn = heightCm / 2.54;
+  } else {
+    widthIn = state.gridWidth / count;
+    heightIn = state.gridHeight / count;
+    widthCm = widthIn * 2.54;
+    heightCm = heightIn * 2.54;
+  }
+
+  elements.sizeCm.textContent = `${formatSize(widthCm)} cm x ${formatSize(heightCm)} cm`;
+  elements.sizeIn.textContent = `${formatSize(widthIn)} in x ${formatSize(heightIn)} in`;
+};
+
+const drawSourcePreview = () => {
+  const width = elements.sourceCanvas.width;
+  const height = elements.sourceCanvas.height;
+  sourceCtx.clearRect(0, 0, width, height);
+  if (!state.image) return;
+
+  const ratio = Math.min(width / state.imageWidth, height / state.imageHeight);
+  const drawWidth = state.imageWidth * ratio;
+  const drawHeight = state.imageHeight * ratio;
+  const x = (width - drawWidth) / 2;
+  const y = (height - drawHeight) / 2;
+
+  sourceCtx.drawImage(state.image, x, y, drawWidth, drawHeight);
+};
+
+const resizeForGrid = () => {
+  if (!state.image) return;
+
+  offscreen.width = state.imageWidth;
+  offscreen.height = state.imageHeight;
+  offscreenCtx.clearRect(0, 0, offscreen.width, offscreen.height);
+  offscreenCtx.drawImage(state.image, 0, 0);
+
+  resized.width = state.gridWidth;
+  resized.height = state.gridHeight;
+  resizedCtx.clearRect(0, 0, resized.width, resized.height);
+  resizedCtx.imageSmoothingEnabled = state.smoothing;
+  resizedCtx.filter = state.blurStrength > 0 ? `blur(${state.blurStrength}px)` : "none";
+  resizedCtx.drawImage(offscreen, 0, 0, resized.width, resized.height);
+  resizedCtx.filter = "none";
+};
+
+const mapToPalette = () => {
+  const palette = getPalette();
+  if (!palette) return;
+
+  const symbolSet = getSymbolSet();
+
+  const paletteColors = palette.colors.map((color) => {
+    const rgb = hexToRgb(color.hex);
+    return {
+      ...color,
+      rgb,
+      lab: rgbToLab(rgb),
+    };
+  });
+
+  const imageData = resizedCtx.getImageData(0, 0, resized.width, resized.height);
+  const data = imageData.data;
+  const limit = clampNumber(state.colorLimit, 2, paletteColors.length);
+  const limitedBase = buildLimitedPalette(
+    data,
+    paletteColors,
+    limit,
+    state.accentSlots
+  );
+  const limitedPalette = limitedBase.map((color, index) => ({
+    ...color,
+    symbol: symbolSet[index] || "?",
+  }));
+  const limitedCounts = new Array(limitedPalette.length).fill(0);
+
+  const totalPixels = resized.width * resized.height;
+  const limitedMapped = new Uint16Array(totalPixels);
+  const ditherStrength = clampNumber(state.ditherStrength, 0, 100) / 100;
+
+  if (ditherStrength > 0) {
+    const width = resized.width;
+    const height = resized.height;
+    const errR = new Float32Array(totalPixels);
+    const errG = new Float32Array(totalPixels);
+    const errB = new Float32Array(totalPixels);
+
+    for (let i = 0; i < totalPixels; i += 1) {
+      const idx = i * 4;
+      errR[i] = data[idx];
+      errG[i] = data[idx + 1];
+      errB[i] = data[idx + 2];
+    }
+
+    const distributeError = (x, y, er, eg, eb, weight) => {
+      if (x < 0 || x >= width || y < 0 || y >= height) return;
+      const index = y * width + x;
+      errR[index] += er * weight;
+      errG[index] += eg * weight;
+      errB[index] += eb * weight;
+    };
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const index = y * width + x;
+        const idx = index * 4;
+        const alpha = data[idx + 3];
+        if (alpha < 10) {
+          limitedMapped[index] = 0;
+          continue;
+        }
+
+        const rgb = {
+          r: clampNumber(Math.round(errR[index]), 0, 255),
+          g: clampNumber(Math.round(errG[index]), 0, 255),
+          b: clampNumber(Math.round(errB[index]), 0, 255),
+        };
+        const lab = rgbToLab(rgb);
+        let bestIndex = 0;
+        let bestDistance = Infinity;
+        for (let j = 0; j < limitedPalette.length; j += 1) {
+          const dist = labDistanceSq(lab, limitedPalette[j].lab);
+          if (dist < bestDistance) {
+            bestDistance = dist;
+            bestIndex = j;
+          }
+        }
+
+        limitedMapped[index] = bestIndex;
+        limitedCounts[bestIndex] += 1;
+
+        const target = limitedPalette[bestIndex].rgb;
+        const er = (rgb.r - target.r) * ditherStrength;
+        const eg = (rgb.g - target.g) * ditherStrength;
+        const eb = (rgb.b - target.b) * ditherStrength;
+
+        distributeError(x + 1, y, er, eg, eb, 7 / 16);
+        distributeError(x - 1, y + 1, er, eg, eb, 3 / 16);
+        distributeError(x, y + 1, er, eg, eb, 5 / 16);
+        distributeError(x + 1, y + 1, er, eg, eb, 1 / 16);
+      }
+    }
+  } else {
+    for (let i = 0; i < totalPixels; i += 1) {
+      const idx = i * 4;
+      const alpha = data[idx + 3];
+      const rgb = { r: data[idx], g: data[idx + 1], b: data[idx + 2] };
+      const lab = rgbToLab(rgb);
+      let bestIndex = 0;
+      let bestDistance = Infinity;
+      for (let j = 0; j < limitedPalette.length; j += 1) {
+        const dist = labDistanceSq(lab, limitedPalette[j].lab);
+        if (dist < bestDistance) {
+          bestDistance = dist;
+          bestIndex = j;
+        }
+      }
+      if (alpha >= 10) {
+        limitedCounts[bestIndex] += 1;
+      }
+      limitedMapped[i] = bestIndex;
+    }
+  }
+
+  state.mappedPixels = limitedMapped;
+  state.mappedPalette = limitedPalette;
+  state.counts = limitedCounts;
+  state.symbols = limitedPalette.map((color) => color.symbol || "?");
+};
+
+const applySymbolPresetToMapped = () => {
+  if (!state.mappedPalette.length) return;
+  const symbolSet = getSymbolSet();
+  state.symbols = state.mappedPalette.map((color, index) => {
+    const symbol = symbolSet[index] || "?";
+    if (color) {
+      color.symbol = symbol;
+    }
+    return symbol;
+  });
+};
+
+const renderOutputToCanvas = (canvas, scale) => {
+  if (!state.mappedPixels) return;
+
+  const scaledStitch = state.stitchSize * scale;
+  const width = state.gridWidth * scaledStitch;
+  const height = state.gridHeight * scaledStitch;
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, width, height);
+
+  for (let y = 0; y < state.gridHeight; y += 1) {
+    for (let x = 0; x < state.gridWidth; x += 1) {
+      const index = y * state.gridWidth + x;
+      const paletteIndex = state.mappedPixels[index];
+      const color = state.mappedPalette[paletteIndex];
+      if (!isHiddenColor(color)) {
+        ctx.fillStyle = color.hex;
+        ctx.fillRect(
+          x * scaledStitch,
+          y * scaledStitch,
+          scaledStitch,
+          scaledStitch
+        );
+      }
+    }
+  }
+
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.18)";
+  ctx.lineWidth = Math.max(1, Math.round(scale * 0.4));
+  for (let x = 0; x <= state.gridWidth; x += 1) {
+    const xPos = x * scaledStitch;
+    ctx.beginPath();
+    ctx.moveTo(xPos, 0);
+    ctx.lineTo(xPos, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= state.gridHeight; y += 1) {
+    const yPos = y * scaledStitch;
+    ctx.beginPath();
+    ctx.moveTo(0, yPos);
+    ctx.lineTo(width, yPos);
+    ctx.stroke();
+  }
+};
+
+const renderOutput = () => {
+  renderOutputToCanvas(elements.outputCanvas, 1);
+};
+
+const updateAll = () => {
+  if (!state.image) {
+    setStatus("Upload an image to begin.");
+    return;
+  }
+
+  if (!state.paletteId) {
+    setStatus("Add a palette to start mapping colors.");
+    return;
+  }
+
+  setStatus("Processing...");
+  resizeForGrid();
+  mapToPalette();
+  renderOutput();
+  updateLegend();
+  setStatus("Preview updated.");
+};
+
+const updateGridFromWidth = () => {
+  if (!state.image || !elements.lockAspect.checked) return;
+  const widthValue = Number(elements.gridWidth.value) || state.gridWidth;
+  const heightValue = Math.round(widthValue / state.aspectRatio);
+  elements.gridHeight.value = heightValue;
+};
+
+const updateGridFromHeight = () => {
+  if (!state.image || !elements.lockAspect.checked) return;
+  const heightValue = Number(elements.gridHeight.value) || state.gridHeight;
+  const widthValue = Math.round(heightValue * state.aspectRatio);
+  elements.gridWidth.value = widthValue;
+};
+
+const populatePalettes = () => {
+  elements.paletteSelect.innerHTML = "";
+  if (!paletteCatalog.length) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No palettes yet";
+    elements.paletteSelect.appendChild(option);
+    elements.paletteSelect.disabled = true;
+    return;
+  }
+
+  paletteCatalog.forEach((palette) => {
+    const option = document.createElement("option");
+    option.value = palette.id;
+    option.textContent = palette.name;
+    elements.paletteSelect.appendChild(option);
+  });
+  const exists = paletteCatalog.some((palette) => palette.id === state.paletteId);
+  elements.paletteSelect.value = exists ? state.paletteId : paletteCatalog[0]?.id;
+  if (!exists && paletteCatalog[0]) {
+    state.paletteId = paletteCatalog[0].id;
+  }
+  elements.paletteSelect.disabled = false;
+};
+
+const populateFabrics = () => {
+  elements.fabricType.innerHTML = "";
+  fabricCatalog.forEach((fabric) => {
+    const option = document.createElement("option");
+    option.value = fabric.id;
+    option.textContent = fabric.name;
+    elements.fabricType.appendChild(option);
+  });
+  elements.fabricType.value = state.fabricType;
+  populateFabricCounts();
+};
+
+const populateFabricCounts = () => {
+  const fabric = fabricCatalog.find((item) => item.id === state.fabricType) || fabricCatalog[0];
+  if (!fabric) return;
+  elements.fabricCount.innerHTML = "";
+  fabric.counts.forEach((count) => {
+    const option = document.createElement("option");
+    option.value = count;
+    option.textContent = `${count}-count`;
+    elements.fabricCount.appendChild(option);
+  });
+  const fallback = fabric.counts.includes(state.fabricCount) ? state.fabricCount : fabric.counts[0];
+  elements.fabricCount.value = String(fallback);
+  state.fabricCount = Number(elements.fabricCount.value) || fallback;
+};
+
+const syncStateFromInputs = () => {
+  state.gridWidth = clampNumber(Number(elements.gridWidth.value) || 10, 10, 1000);
+  state.gridHeight = clampNumber(Number(elements.gridHeight.value) || 10, 10, 1000);
+  state.stitchSize = clampNumber(Number(elements.stitchSize.value) || 10, 4, 30);
+  state.colorLimit = clampNumber(Number(elements.colorLimit.value) || 10, 2, 32);
+  state.ditherStrength = clampNumber(Number(elements.ditherStrength.value) || 0, 0, 100);
+  state.paletteId = elements.paletteSelect.value || "";
+  state.pixelArtMode = elements.pixelArtMode.checked;
+  state.blurStrength = state.pixelArtMode ? 0 : Number(elements.blurStrength.value) || 0;
+  state.smoothing = state.pixelArtMode ? false : elements.smoothing.checked;
+  state.accentSlots = clampNumber(Number(elements.accentSlots.value) || 0, 0, 4);
+  state.fabricType = elements.fabricType.value;
+  state.fabricCount = Number(elements.fabricCount.value) || state.fabricCount;
+  state.fabricUnit = elements.fabricUnit.value;
+  state.patternMode = elements.patternMode.value || "color-symbols";
+
+  elements.colorLimitValue.textContent = state.colorLimit;
+  elements.ditherStrengthValue.textContent = state.ditherStrength;
+  elements.blurValue.textContent = state.pixelArtMode ? 0 : state.blurStrength;
+  updateFabricSizes();
+};
+
+const buildSettingsUrl = () => {
+  const params = new URLSearchParams({
+    palette: state.paletteId,
+    gridWidth: String(state.gridWidth),
+    gridHeight: String(state.gridHeight),
+    stitchSize: String(state.stitchSize),
+    colorLimit: String(state.colorLimit),
+    ditherStrength: String(state.ditherStrength),
+    blurStrength: String(state.blurStrength),
+    smoothing: state.smoothing ? "1" : "0",
+    pixelArtMode: state.pixelArtMode ? "1" : "0",
+    accentSlots: String(state.accentSlots),
+    fabricType: state.fabricType,
+    fabricCount: String(state.fabricCount),
+    fabricUnit: state.fabricUnit,
+    patternMode: state.patternMode,
+    hiddenColors: state.hiddenColors.map((hex) => hex.replace("#", "")).join(","),
+    lockAspect: elements.lockAspect.checked ? "1" : "0",
+  });
+  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+};
+
+const copySettingsUrl = async () => {
+  syncStateFromInputs();
+  const url = buildSettingsUrl();
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const fallback = document.createElement("textarea");
+      fallback.value = url;
+      document.body.appendChild(fallback);
+      fallback.select();
+      document.execCommand("copy");
+      document.body.removeChild(fallback);
+    }
+    setStatus("Settings URL copied.");
+  } catch (error) {
+    setStatus("Could not copy settings URL.");
+  }
+};
+
+const handleFile = (file) => {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    setStatus("Please upload an image file.");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      state.image = img;
+      state.imageWidth = img.naturalWidth;
+      state.imageHeight = img.naturalHeight;
+      state.aspectRatio = state.imageWidth / state.imageHeight;
+
+      const targetWidth = clampNumber(state.imageWidth, 30, 120);
+      const targetHeight = Math.round(targetWidth / state.aspectRatio);
+      elements.gridWidth.value = targetWidth;
+      elements.gridHeight.value = targetHeight;
+
+      drawSourcePreview();
+      syncStateFromInputs();
+      updateAll();
+    };
+    img.src = event.target.result;
+    state.imageUrl = img.src;
+  };
+  reader.readAsDataURL(file);
+};
+
+const printPdf = () => {
+  if (!state.mappedPixels) return;
+  if (!window.StitchloomPdf?.downloadPatternPdf) {
+    setStatus("PDF export is unavailable.");
+    return;
+  }
+
+  syncStateFromInputs();
+  window.StitchloomPdf.downloadPatternPdf({
+    gridWidth: state.gridWidth,
+    gridHeight: state.gridHeight,
+    mappedPixels: state.mappedPixels,
+    mappedPalette: state.mappedPalette,
+    counts: state.counts,
+    symbols: state.symbols,
+    fabricCount: state.fabricCount,
+    fabricUnit: state.fabricUnit,
+    patternMode: state.patternMode,
+    hiddenColors: state.hiddenColors,
+  });
+};
+
+populatePalettes();
+populateFabrics();
+syncStateFromInputs();
+updateLegend();
+applySettingsFromUrl();
+
+elements.imageUpload.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  handleFile(file);
+});
+
+elements.paletteSelect.addEventListener("change", () => {
+  syncStateFromInputs();
+  updateAll();
+});
+
+elements.colorLimit.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.colorLimit.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.ditherStrength.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.ditherStrength.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.gridWidth.addEventListener("input", () => {
+  updateGridFromWidth();
+  syncStateFromInputs();
+});
+
+elements.gridHeight.addEventListener("input", () => {
+  updateGridFromHeight();
+  syncStateFromInputs();
+});
+
+elements.lockAspect.addEventListener("change", () => {
+  updateGridFromWidth();
+  syncStateFromInputs();
+});
+
+elements.useOriginal.addEventListener("click", () => {
+  if (!state.image) return;
+  elements.gridWidth.value = state.imageWidth;
+  elements.gridHeight.value = state.imageHeight;
+  syncStateFromInputs();
+  updateAll();
+});
+
+elements.stitchSize.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.stitchSize.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.accentSlots.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.accentSlots.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.fabricType.addEventListener("change", () => {
+  state.fabricType = elements.fabricType.value;
+  populateFabricCounts();
+  syncStateFromInputs();
+});
+
+elements.fabricCount.addEventListener("change", () => {
+  syncStateFromInputs();
+});
+
+elements.fabricUnit.addEventListener("change", () => {
+  syncStateFromInputs();
+});
+
+elements.patternMode.addEventListener("change", () => {
+  syncStateFromInputs();
+});
+
+elements.blurStrength.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.blurStrength.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.smoothing.addEventListener("change", () => {
+  syncStateFromInputs();
+  updateAll();
+});
+
+elements.pixelArtMode.addEventListener("change", () => {
+  const wasEnabled = state.pixelArtMode;
+  const willEnable = elements.pixelArtMode.checked;
+  if (willEnable && !wasEnabled) {
+    state.prevSmoothing = elements.smoothing.checked;
+    state.prevBlurStrength = Number(elements.blurStrength.value) || 0;
+  }
+  applyPixelArtMode(willEnable);
+  syncStateFromInputs();
+  updateAll();
+});
+
+elements.refresh.addEventListener("click", () => {
+  syncStateFromInputs();
+  updateAll();
+});
+
+elements.printPdf.addEventListener("click", () => {
+  printPdf();
+});
+
+elements.copySettingsUrl.addEventListener("click", () => {
+  copySettingsUrl();
+});
+
+elements.legendList.addEventListener("click", (event) => {
+  const visibility = event.target.closest(".legend-visibility");
+  if (visibility) {
+    const index = Number(visibility.dataset.index);
+    if (!Number.isFinite(index)) return;
+    const color = state.mappedPalette[index];
+    if (!color) return;
+    toggleHiddenColor(color);
+    renderOutput();
+    updateLegend();
+    return;
+  }
+  const button = event.target.closest(".legend-action");
+  if (!button) return;
+  const index = Number(button.dataset.index);
+  if (!Number.isFinite(index)) return;
+  openPaletteSearch(index);
+});
+
+elements.paletteSearchInput.addEventListener("input", (event) => {
+  renderPaletteSearch(event.target.value);
+});
+
+elements.paletteSearchInput.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    closePaletteSearch();
+  }
+});
+
+elements.paletteSearchResults.addEventListener("click", (event) => {
+  const item = event.target.closest(".search-result");
+  if (!item) return;
+  const palette = getPalette();
+  if (!palette) return;
+  const hex = item.dataset.hex;
+  const match = palette.colors.find((color) => color.hex === hex);
+  if (!match) return;
+  applyPaletteReplacement(match);
+});
+
+elements.paletteSearchClose.addEventListener("click", () => {
+  closePaletteSearch();
+});
+
+elements.paletteSearchModal.addEventListener("click", (event) => {
+  if (event.target === elements.paletteSearchModal) {
+    closePaletteSearch();
+  }
+});
