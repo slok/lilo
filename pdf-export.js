@@ -79,6 +79,26 @@
     });
   };
 
+  const drawArrow = (page, x, y, direction, size) => {
+    const half = size / 2;
+    let path = "";
+    if (direction === "down") {
+      path = `M0 0 L${size} 0 L${half} ${size} Z`;
+    } else if (direction === "up") {
+      path = `M0 ${size} L${size} ${size} L${half} 0 Z`;
+    } else if (direction === "right") {
+      path = `M0 0 L0 ${size} L${size} ${half} Z`;
+    } else if (direction === "left") {
+      path = `M${size} 0 L${size} ${size} L0 ${half} Z`;
+    }
+    if (!path) return;
+    page.drawSvgPath(path, {
+      x: x - half,
+      y: y - half,
+      color: rgb(0, 0, 0),
+    });
+  };
+
   const drawGridPage = ({
     page,
     tileStartX,
@@ -117,6 +137,7 @@
     });
 
     const symbolSize = clamp(cellSize * 0.55, 4, 9);
+    const arrowSize = clamp(cellSize * 0.7, 5, 10);
     const useSymbolFont = Boolean(symbolFont);
     const symbolOffsetY = useSymbolFont ? symbolSize * 0.35 : 0;
 
@@ -244,6 +265,23 @@
       font,
       color: rgb(0, 0, 0),
     });
+
+    const maxCols = Math.min(TILE_COLS, gridWidth - tileStartX);
+    const maxRows = Math.min(TILE_ROWS, gridHeight - tileStartY);
+    const centerCol = Math.floor(gridWidth / 2);
+    const centerRow = Math.floor(gridHeight / 2);
+
+    if (centerCol >= tileStartX && centerCol < tileStartX + maxCols) {
+      const localCol = centerCol - tileStartX;
+      const x = gridLeft + localCol * cellSize;
+      drawArrow(page, x, gridTop + TOP_INDEX_HEIGHT + arrowSize - 16, "down", arrowSize);
+    }
+
+    if (centerRow >= tileStartY && centerRow < tileStartY + maxRows) {
+      const localRow = centerRow - tileStartY;
+      const y = gridTop - (localRow - 1) * cellSize;
+      drawArrow(page, gridLeft - 2, y, "right", arrowSize);
+    }
   };
 
   const drawLegendPages = ({
@@ -500,5 +538,5 @@
     URL.revokeObjectURL(url);
   };
 
-  window.StitchloomPdf = { downloadPatternPdf };
+  window.LiloPdf = { downloadPatternPdf };
 })();
