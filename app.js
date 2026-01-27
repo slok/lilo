@@ -55,6 +55,8 @@ const defaultPaletteId = typeof dmcPalette !== "undefined" ? dmcPalette.id : "";
 
 const paletteCatalog = typeof dmcPalette !== "undefined" ? [dmcPalette] : [];
 
+const STITCH_SIZE = 10;
+
 const state = {
   image: null,
   imageUrl: null,
@@ -63,26 +65,26 @@ const state = {
   aspectRatio: 1,
   gridWidth: 80,
   gridHeight: 80,
-  stitchSize: 10,
   colorLimit: 10,
   ditherStrength: 0,
   paletteId: defaultPaletteId,
-  blurStrength: 1,
-  smoothing: true,
-  pixelArtMode: false,
+  blurStrength: 0,
+  smoothing: false,
   accentSlots: 2,
   fabricType: "aida",
   fabricCount: 14,
   fabricUnit: "inch",
   patternMode: "color-symbols",
   hiddenColors: [],
+  manageMode: "pick",
+  manageColorIndex: null,
+  managePainting: false,
+  projectMeta: null,
   mappedPixels: null,
   mappedPalette: [],
   counts: [],
   symbols: [],
   activeReplaceIndex: null,
-  prevSmoothing: true,
-  prevBlurStrength: 1,
 };
 
 const elements = {
@@ -96,23 +98,32 @@ const elements = {
   gridHeight: document.getElementById("gridHeight"),
   lockAspect: document.getElementById("lockAspect"),
   useOriginal: document.getElementById("useOriginal"),
-  stitchSize: document.getElementById("stitchSize"),
   blurStrength: document.getElementById("blurStrength"),
   blurValue: document.getElementById("blurValue"),
   smoothing: document.getElementById("smoothing"),
-  pixelArtMode: document.getElementById("pixelArtMode"),
   accentSlots: document.getElementById("accentSlots"),
   fabricType: document.getElementById("fabricType"),
   fabricCount: document.getElementById("fabricCount"),
   fabricUnit: document.getElementById("fabricUnit"),
   patternMode: document.getElementById("patternMode"),
+  previewZoom: document.getElementById("previewZoom"),
+  previewZoomValue: document.getElementById("previewZoomValue"),
+  managePick: document.getElementById("managePick"),
+  managePaint: document.getElementById("managePaint"),
+  manageSwatch: document.getElementById("manageSwatch"),
+  manageColorName: document.getElementById("manageColorName"),
+  manageColorCode: document.getElementById("manageColorCode"),
   sizeCm: document.getElementById("sizeCm"),
   sizeIn: document.getElementById("sizeIn"),
   refresh: document.getElementById("refresh"),
   printPdf: document.getElementById("printPdf"),
-  copySettingsUrl: document.getElementById("copySettingsUrl"),
+  saveProject: document.getElementById("saveProject"),
+  loadProject: document.getElementById("loadProject"),
+  projectFile: document.getElementById("projectFile"),
+  openManage: document.getElementById("openManage"),
   sourceCanvas: document.getElementById("sourceCanvas"),
   outputCanvas: document.getElementById("outputCanvas"),
+  manageCanvas: document.getElementById("manageCanvas"),
   legendList: document.getElementById("legendList"),
   status: document.getElementById("status"),
   paletteSearchModal: document.getElementById("paletteSearchModal"),
@@ -120,6 +131,8 @@ const elements = {
   paletteSearchResults: document.getElementById("paletteSearchResults"),
   paletteSearchCount: document.getElementById("paletteSearchCount"),
   paletteSearchClose: document.getElementById("paletteSearchClose"),
+  manageModal: document.getElementById("manageModal"),
+  manageClose: document.getElementById("manageClose"),
 };
 
 const sourceCtx = elements.sourceCanvas.getContext("2d");
@@ -267,6 +280,35 @@ const setStatus = (message) => {
   elements.status.textContent = message;
 };
 
+const getProjectMeta = () => {
+  const now = new Date().toISOString();
+  if (!state.projectMeta) {
+    const id =
+      (window.crypto?.randomUUID && window.crypto.randomUUID()) ||
+      `lilo-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+    state.projectMeta = {
+      id,
+      createdAt: now,
+      updatedAt: now,
+    };
+    return state.projectMeta;
+  }
+  state.projectMeta.updatedAt = now;
+  return state.projectMeta;
+};
+
+let toastTimer = null;
+const showToast = (message) => {
+  const toast = document.getElementById("toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("show");
+  if (toastTimer) window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toast.classList.remove("show");
+  }, 2200);
+};
+
 const updateLegend = () => {
   elements.legendList.innerHTML = "";
   if (!state.counts.length) {
@@ -291,31 +333,43 @@ const updateLegend = () => {
     symbolBadge.className = "symbol-badge";
     symbolBadge.textContent = symbol;
 
-    const swatch = document.createElement("div");
-    swatch.className = "swatch";
-    swatch.style.background = color.hex;
-
     const info = document.createElement("div");
     const title = document.createElement("strong");
     title.textContent = color.name;
     const meta = document.createElement("div");
     meta.className = "legend-meta";
-    const code = color.code ? ` · ${color.code}` : "";
-    meta.textContent = `${count} stitches${code}`;
+    const swatch = document.createElement("div");
+    swatch.className = "swatch";
+    swatch.style.background = color.hex;
+    const stitchCount = document.createElement("span");
+    stitchCount.className = "legend-count";
+    stitchCount.textContent = `(${count} st.)`;
+    meta.appendChild(stitchCount);
+    if (color.code) {
+      const kbd = document.createElement("kbd");
+      kbd.className = "kbd";
+      kbd.textContent = `@${color.code}`;
+      meta.appendChild(kbd);
+    }
 
-    info.appendChild(title);
-    info.appendChild(meta);
-
-    item.appendChild(symbolBadge);
-    item.appendChild(swatch);
-    item.appendChild(info);
+    const iconStack = document.createElement("div");
+    iconStack.className = "legend-icon";
+    iconStack.appendChild(swatch);
+    iconStack.appendChild(symbolBadge);
     const actions = document.createElement("div");
     actions.className = "legend-actions";
-    const visibility = document.createElement("button");
-    visibility.className = "legend-visibility";
-    visibility.type = "button";
+    const visibility = document.createElement("label");
+    visibility.className = "switch legend-switch";
     visibility.dataset.index = String(index);
-    visibility.textContent = hidden ? "Show" : "Hide";
+    const visibilityInput = document.createElement("input");
+    visibilityInput.className = "switch-input switch-input-sm";
+    visibilityInput.type = "checkbox";
+    visibilityInput.role = "switch";
+    visibilityInput.checked = hidden;
+    const visibilityText = document.createElement("span");
+    visibilityText.textContent = "Hide";
+    visibility.appendChild(visibilityInput);
+    visibility.appendChild(visibilityText);
     actions.appendChild(visibility);
     const action = document.createElement("button");
     action.className = "legend-action";
@@ -323,7 +377,11 @@ const updateLegend = () => {
     action.dataset.index = String(index);
     action.textContent = "Replace";
     actions.appendChild(action);
-    item.appendChild(actions);
+    info.appendChild(title);
+    info.appendChild(meta);
+    info.appendChild(actions);
+    item.appendChild(iconStack);
+    item.appendChild(info);
     elements.legendList.appendChild(item);
   });
 };
@@ -452,119 +510,6 @@ const formatSize = (value) => {
   return rounded.toFixed(1);
 };
 
-const readNumberParam = (params, key) => {
-  const value = Number(params.get(key));
-  return Number.isFinite(value) ? value : null;
-};
-
-const readBoolParam = (params, key) => {
-  const value = params.get(key);
-  if (value === null) return null;
-  return value === "1" || value.toLowerCase() === "true";
-};
-
-const readStringParam = (params, key) => {
-  const value = params.get(key);
-  return value ? value : null;
-};
-
-const applyPixelArtMode = (enabled) => {
-  if (enabled) {
-    elements.smoothing.checked = false;
-    elements.blurStrength.value = 0;
-    elements.smoothing.disabled = true;
-    elements.blurStrength.disabled = true;
-  } else {
-    elements.smoothing.checked = state.prevSmoothing;
-    elements.blurStrength.value = state.prevBlurStrength;
-    elements.smoothing.disabled = false;
-    elements.blurStrength.disabled = false;
-  }
-};
-
-const applySettingsFromUrl = () => {
-  const params = new URLSearchParams(window.location.search);
-  if (!params.toString()) return;
-
-  const paletteId = readStringParam(params, "palette");
-  if (paletteId && paletteCatalog.some((palette) => palette.id === paletteId)) {
-    elements.paletteSelect.value = paletteId;
-    state.paletteId = paletteId;
-  }
-
-
-  const hiddenColors = readStringParam(params, "hiddenColors");
-  if (hiddenColors) {
-    const items = hiddenColors
-      .split(",")
-      .map((value) => value.trim())
-      .filter(Boolean)
-      .map((value) => (value.startsWith("#") ? value : `#${value}`));
-    state.hiddenColors = items;
-  }
-
-  const gridWidth = readNumberParam(params, "gridWidth");
-  if (gridWidth !== null) elements.gridWidth.value = gridWidth;
-
-  const gridHeight = readNumberParam(params, "gridHeight");
-  if (gridHeight !== null) elements.gridHeight.value = gridHeight;
-
-  const stitchSize = readNumberParam(params, "stitchSize");
-  if (stitchSize !== null) elements.stitchSize.value = stitchSize;
-
-  const colorLimit = readNumberParam(params, "colorLimit");
-  if (colorLimit !== null) elements.colorLimit.value = colorLimit;
-
-  const ditherStrength = readNumberParam(params, "ditherStrength");
-  if (ditherStrength !== null) elements.ditherStrength.value = ditherStrength;
-
-  const blurStrength = readNumberParam(params, "blurStrength");
-  if (blurStrength !== null) elements.blurStrength.value = blurStrength;
-
-  const accentSlots = readNumberParam(params, "accentSlots");
-  if (accentSlots !== null) elements.accentSlots.value = accentSlots;
-
-  const fabricType = readStringParam(params, "fabricType");
-  if (fabricType && fabricCatalog.some((fabric) => fabric.id === fabricType)) {
-    elements.fabricType.value = fabricType;
-    state.fabricType = fabricType;
-    populateFabricCounts();
-  }
-
-  const fabricCount = readNumberParam(params, "fabricCount");
-  if (fabricCount !== null) elements.fabricCount.value = fabricCount;
-
-  const fabricUnit = readStringParam(params, "fabricUnit");
-  if (fabricUnit && (fabricUnit === "inch" || fabricUnit === "cm")) {
-    elements.fabricUnit.value = fabricUnit;
-  }
-
-  const patternMode = readStringParam(params, "patternMode");
-  if (patternMode && ["color-symbols", "symbols", "color"].includes(patternMode)) {
-    elements.patternMode.value = patternMode;
-  }
-
-  const smoothing = readBoolParam(params, "smoothing");
-  if (smoothing !== null) elements.smoothing.checked = smoothing;
-
-  const pixelArtMode = readBoolParam(params, "pixelArtMode");
-  if (pixelArtMode !== null) elements.pixelArtMode.checked = pixelArtMode;
-
-  const lockAspect = readBoolParam(params, "lockAspect");
-  if (lockAspect !== null) elements.lockAspect.checked = lockAspect;
-
-  if (elements.pixelArtMode.checked) {
-    state.prevSmoothing = elements.smoothing.checked;
-    state.prevBlurStrength = Number(elements.blurStrength.value) || 0;
-    applyPixelArtMode(true);
-  }
-
-  syncStateFromInputs();
-  applySymbolPresetToMapped();
-  updateLegend();
-  setStatus("Settings loaded from URL.");
-};
-
 const updateFabricSizes = () => {
   const count = state.fabricCount || 1;
   let widthIn = 0;
@@ -615,6 +560,7 @@ const resizeForGrid = () => {
   resized.height = state.gridHeight;
   resizedCtx.clearRect(0, 0, resized.width, resized.height);
   resizedCtx.imageSmoothingEnabled = state.smoothing;
+  resizedCtx.imageSmoothingQuality = state.smoothing ? "high" : "low";
   resizedCtx.filter = state.blurStrength > 0 ? `blur(${state.blurStrength}px)` : "none";
   resizedCtx.drawImage(offscreen, 0, 0, resized.width, resized.height);
   resizedCtx.filter = "none";
@@ -759,7 +705,7 @@ const applySymbolPresetToMapped = () => {
 const renderOutputToCanvas = (canvas, scale) => {
   if (!state.mappedPixels) return;
 
-  const scaledStitch = state.stitchSize * scale;
+  const scaledStitch = STITCH_SIZE * scale;
   const width = state.gridWidth * scaledStitch;
   const height = state.gridHeight * scaledStitch;
   canvas.width = width;
@@ -804,6 +750,96 @@ const renderOutputToCanvas = (canvas, scale) => {
 
 const renderOutput = () => {
   renderOutputToCanvas(elements.outputCanvas, 1);
+  renderManagePreview();
+};
+
+const updatePreviewZoom = () => {
+  const zoom = clampNumber(Number(elements.previewZoom.value) || 1, 0.5, 4);
+  elements.previewZoomValue.textContent = `${zoom.toFixed(1)}x`;
+  if (!elements.manageCanvas) return;
+  const width = elements.manageCanvas.width * zoom;
+  const height = elements.manageCanvas.height * zoom;
+  elements.manageCanvas.style.width = `${width}px`;
+  elements.manageCanvas.style.height = `${height}px`;
+};
+
+const renderManagePreview = () => {
+  if (!elements.manageCanvas) return;
+  renderOutputToCanvas(elements.manageCanvas, 1);
+  updatePreviewZoom();
+};
+
+const updateManageToolbar = () => {
+  if (!elements.managePick || !elements.managePaint) return;
+  const isPick = state.manageMode === "pick";
+  elements.managePick.classList.toggle("active", isPick);
+  elements.managePaint.classList.toggle("active", !isPick);
+  if (elements.manageCanvas) {
+    elements.manageCanvas.classList.toggle("cursor-pick", isPick);
+  }
+
+  const color = state.manageColorIndex !== null ? state.mappedPalette[state.manageColorIndex] : null;
+  if (!elements.manageSwatch || !elements.manageColorName || !elements.manageColorCode) return;
+  if (!color) {
+    elements.manageSwatch.style.background = "#fff";
+    elements.manageColorName.textContent = "No color selected";
+    elements.manageColorCode.textContent = "";
+    return;
+  }
+  elements.manageSwatch.style.background = color.hex;
+  elements.manageColorName.textContent = color.name || "Color";
+  elements.manageColorCode.textContent = color.code ? `@${color.code}` : "";
+};
+
+const updateCountsFromMapped = () => {
+  if (!state.mappedPixels || !state.mappedPalette.length) return;
+  const counts = new Array(state.mappedPalette.length).fill(0);
+  for (let i = 0; i < state.mappedPixels.length; i += 1) {
+    const idx = state.mappedPixels[i];
+    if (Number.isFinite(idx) && counts[idx] !== undefined) {
+      counts[idx] += 1;
+    }
+  }
+  state.counts = counts;
+};
+
+const getManageCellIndex = (event) => {
+  if (!state.mappedPixels || !elements.manageCanvas) return;
+  const rect = elements.manageCanvas.getBoundingClientRect();
+  const scale = elements.manageCanvas.width / rect.width;
+  const x = (event.clientX - rect.left) * scale;
+  const y = (event.clientY - rect.top) * scale;
+  const col = Math.floor(x / STITCH_SIZE);
+  const row = Math.floor(y / STITCH_SIZE);
+  if (col < 0 || row < 0 || col >= state.gridWidth || row >= state.gridHeight) return;
+  const index = row * state.gridWidth + col;
+  return index;
+};
+
+const paintManageCell = (index) => {
+  if (!Number.isFinite(index)) return;
+  if (state.manageColorIndex === null) {
+    setStatus("Pick a color first.");
+    return;
+  }
+  state.mappedPixels[index] = state.manageColorIndex;
+  updateCountsFromMapped();
+  renderOutput();
+  updateLegend();
+};
+
+const handleManageClick = (event) => {
+  const index = getManageCellIndex(event);
+  if (!Number.isFinite(index)) return;
+  const current = state.mappedPixels[index];
+
+  if (state.manageMode === "pick") {
+    state.manageColorIndex = current;
+    state.manageMode = "paint";
+    updateManageToolbar();
+    return;
+  }
+  paintManageCell(index);
 };
 
 const updateAll = () => {
@@ -894,13 +930,11 @@ const populateFabricCounts = () => {
 const syncStateFromInputs = () => {
   state.gridWidth = clampNumber(Number(elements.gridWidth.value) || 10, 10, 1000);
   state.gridHeight = clampNumber(Number(elements.gridHeight.value) || 10, 10, 1000);
-  state.stitchSize = clampNumber(Number(elements.stitchSize.value) || 10, 4, 30);
   state.colorLimit = clampNumber(Number(elements.colorLimit.value) || 10, 2, 32);
   state.ditherStrength = clampNumber(Number(elements.ditherStrength.value) || 0, 0, 100);
   state.paletteId = elements.paletteSelect.value || "";
-  state.pixelArtMode = elements.pixelArtMode.checked;
-  state.blurStrength = state.pixelArtMode ? 0 : Number(elements.blurStrength.value) || 0;
-  state.smoothing = state.pixelArtMode ? false : elements.smoothing.checked;
+  state.blurStrength = Number(elements.blurStrength.value) || 0;
+  state.smoothing = elements.smoothing.checked;
   state.accentSlots = clampNumber(Number(elements.accentSlots.value) || 0, 0, 4);
   state.fabricType = elements.fabricType.value;
   state.fabricCount = Number(elements.fabricCount.value) || state.fabricCount;
@@ -909,50 +943,164 @@ const syncStateFromInputs = () => {
 
   elements.colorLimitValue.textContent = state.colorLimit;
   elements.ditherStrengthValue.textContent = state.ditherStrength;
-  elements.blurValue.textContent = state.pixelArtMode ? 0 : state.blurStrength;
+  elements.blurValue.textContent = state.blurStrength;
   updateFabricSizes();
 };
 
-const buildSettingsUrl = () => {
-  const params = new URLSearchParams({
+const buildProjectData = () => {
+  const meta = getProjectMeta();
+  const settings = {
     palette: state.paletteId,
-    gridWidth: String(state.gridWidth),
-    gridHeight: String(state.gridHeight),
-    stitchSize: String(state.stitchSize),
-    colorLimit: String(state.colorLimit),
-    ditherStrength: String(state.ditherStrength),
-    blurStrength: String(state.blurStrength),
-    smoothing: state.smoothing ? "1" : "0",
-    pixelArtMode: state.pixelArtMode ? "1" : "0",
-    accentSlots: String(state.accentSlots),
+    gridWidth: state.gridWidth,
+    gridHeight: state.gridHeight,
+    colorLimit: state.colorLimit,
+    ditherStrength: state.ditherStrength,
+    blurStrength: state.blurStrength,
+    smoothing: state.smoothing,
+    accentSlots: state.accentSlots,
     fabricType: state.fabricType,
-    fabricCount: String(state.fabricCount),
+    fabricCount: state.fabricCount,
     fabricUnit: state.fabricUnit,
     patternMode: state.patternMode,
-    hiddenColors: state.hiddenColors.map((hex) => hex.replace("#", "")).join(","),
-    lockAspect: elements.lockAspect.checked ? "1" : "0",
-  });
-  return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+    hiddenColors: state.hiddenColors,
+    lockAspect: elements.lockAspect.checked,
+  };
+
+  return {
+    schemaVersion: "V1",
+    metadata: meta,
+    settings,
+    mappedPixels: state.mappedPixels ? Array.from(state.mappedPixels) : null,
+    mappedPalette: state.mappedPalette ? state.mappedPalette : null,
+  };
 };
 
-const copySettingsUrl = async () => {
-  syncStateFromInputs();
-  const url = buildSettingsUrl();
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-    } else {
-      const fallback = document.createElement("textarea");
-      fallback.value = url;
-      document.body.appendChild(fallback);
-      fallback.select();
-      document.execCommand("copy");
-      document.body.removeChild(fallback);
-    }
-    setStatus("Settings URL copied.");
-  } catch (error) {
-    setStatus("Could not copy settings URL.");
+const getImageBlob = async () => {
+  if (!state.imageUrl) return null;
+  const response = await fetch(state.imageUrl);
+  return response.blob();
+};
+
+const saveProject = async () => {
+  if (!state.image) {
+    setStatus("Upload an image to save a project.");
+    return;
   }
+  if (!window.JSZip) {
+    setStatus("Project export is unavailable.");
+    return;
+  }
+
+  syncStateFromInputs();
+  const zip = new window.JSZip();
+  const project = buildProjectData();
+  zip.file("project.json", JSON.stringify(project, null, 2));
+
+  const imageBlob = await getImageBlob();
+  if (imageBlob) {
+    zip.file("image.png", imageBlob);
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${project.metadata?.id || "project"}.lilo`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast("Project saved.");
+};
+
+const applyProjectSettings = (settings) => {
+  if (!settings) return;
+  if (settings.palette && paletteCatalog.some((palette) => palette.id === settings.palette)) {
+    elements.paletteSelect.value = settings.palette;
+    state.paletteId = settings.palette;
+  }
+  if (Number.isFinite(settings.gridWidth)) elements.gridWidth.value = settings.gridWidth;
+  if (Number.isFinite(settings.gridHeight)) elements.gridHeight.value = settings.gridHeight;
+  if (Number.isFinite(settings.colorLimit)) elements.colorLimit.value = settings.colorLimit;
+  if (Number.isFinite(settings.ditherStrength)) elements.ditherStrength.value = settings.ditherStrength;
+  if (Number.isFinite(settings.blurStrength)) elements.blurStrength.value = settings.blurStrength;
+  if (typeof settings.smoothing === "boolean") elements.smoothing.checked = settings.smoothing;
+  if (Number.isFinite(settings.accentSlots)) elements.accentSlots.value = settings.accentSlots;
+  if (settings.fabricType && fabricCatalog.some((fabric) => fabric.id === settings.fabricType)) {
+    elements.fabricType.value = settings.fabricType;
+    state.fabricType = settings.fabricType;
+    populateFabricCounts();
+  }
+  if (Number.isFinite(settings.fabricCount)) elements.fabricCount.value = settings.fabricCount;
+  if (settings.fabricUnit === "inch" || settings.fabricUnit === "cm") {
+    elements.fabricUnit.value = settings.fabricUnit;
+  }
+  if (settings.patternMode && ["color-symbols", "symbols", "color"].includes(settings.patternMode)) {
+    elements.patternMode.value = settings.patternMode;
+  }
+  if (Array.isArray(settings.hiddenColors)) {
+    state.hiddenColors = settings.hiddenColors;
+  }
+  if (typeof settings.lockAspect === "boolean") elements.lockAspect.checked = settings.lockAspect;
+  syncStateFromInputs();
+};
+
+const loadImageFromBlob = (blob) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = event.target.result;
+      state.imageUrl = img.src;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+const loadProject = async (file) => {
+  if (!file || !window.JSZip) return;
+  const zip = await window.JSZip.loadAsync(file);
+  const projectText = await zip.file("project.json")?.async("string");
+  if (!projectText) {
+    setStatus("Invalid project file.");
+    return;
+  }
+  const project = JSON.parse(projectText);
+  if (project.metadata) {
+    state.projectMeta = {
+      id: project.metadata.id || state.projectMeta?.id || null,
+      createdAt: project.metadata.createdAt || state.projectMeta?.createdAt || null,
+      updatedAt: project.metadata.updatedAt || state.projectMeta?.updatedAt || null,
+    };
+  } else {
+    state.projectMeta = null;
+  }
+  applyProjectSettings(project.settings || {});
+
+  const imageFile = zip.file("image.png");
+  if (imageFile) {
+    const blob = await imageFile.async("blob");
+    const img = await loadImageFromBlob(blob);
+    state.image = img;
+    state.imageWidth = img.naturalWidth;
+    state.imageHeight = img.naturalHeight;
+    state.aspectRatio = state.imageWidth / state.imageHeight;
+    drawSourcePreview();
+  }
+
+  if (project.mappedPixels && project.mappedPalette) {
+    state.mappedPixels = project.mappedPixels;
+    state.mappedPalette = project.mappedPalette;
+    applySymbolPresetToMapped();
+    updateCountsFromMapped();
+    renderOutput();
+    updateLegend();
+  } else {
+    updateAll();
+  }
+  showToast("Project loaded.");
 };
 
 const handleFile = (file) => {
@@ -988,13 +1136,13 @@ const handleFile = (file) => {
 
 const printPdf = () => {
   if (!state.mappedPixels) return;
-  if (!window.StitchloomPdf?.downloadPatternPdf) {
+  if (!window.LiloPdf?.downloadPatternPdf) {
     setStatus("PDF export is unavailable.");
     return;
   }
 
   syncStateFromInputs();
-  window.StitchloomPdf.downloadPatternPdf({
+  window.LiloPdf.downloadPatternPdf({
     gridWidth: state.gridWidth,
     gridHeight: state.gridHeight,
     mappedPixels: state.mappedPixels,
@@ -1012,7 +1160,9 @@ populatePalettes();
 populateFabrics();
 syncStateFromInputs();
 updateLegend();
-applySettingsFromUrl();
+if (window.lucide?.createIcons) {
+  window.lucide.createIcons();
+}
 
 elements.imageUpload.addEventListener("change", (event) => {
   const file = event.target.files[0];
@@ -1045,14 +1195,23 @@ elements.gridWidth.addEventListener("input", () => {
   syncStateFromInputs();
 });
 
+elements.gridWidth.addEventListener("change", () => {
+  updateAll();
+});
+
 elements.gridHeight.addEventListener("input", () => {
   updateGridFromHeight();
   syncStateFromInputs();
 });
 
+elements.gridHeight.addEventListener("change", () => {
+  updateAll();
+});
+
 elements.lockAspect.addEventListener("change", () => {
   updateGridFromWidth();
   syncStateFromInputs();
+  updateAll();
 });
 
 elements.useOriginal.addEventListener("click", () => {
@@ -1063,13 +1222,27 @@ elements.useOriginal.addEventListener("click", () => {
   updateAll();
 });
 
-elements.stitchSize.addEventListener("input", () => {
-  syncStateFromInputs();
+elements.previewZoom.addEventListener("input", () => {
+  updatePreviewZoom();
 });
 
-elements.stitchSize.addEventListener("change", () => {
-  updateAll();
+elements.previewZoom.addEventListener("change", () => {
+  updatePreviewZoom();
 });
+
+const openManageModal = () => {
+  if (!elements.manageModal) return;
+  elements.manageModal.classList.add("open");
+  elements.manageModal.setAttribute("aria-hidden", "false");
+  updateManageToolbar();
+  renderManagePreview();
+};
+
+const closeManageModal = () => {
+  if (!elements.manageModal) return;
+  elements.manageModal.classList.remove("open");
+  elements.manageModal.setAttribute("aria-hidden", "true");
+};
 
 elements.accentSlots.addEventListener("input", () => {
   syncStateFromInputs();
@@ -1110,19 +1283,7 @@ elements.smoothing.addEventListener("change", () => {
   updateAll();
 });
 
-elements.pixelArtMode.addEventListener("change", () => {
-  const wasEnabled = state.pixelArtMode;
-  const willEnable = elements.pixelArtMode.checked;
-  if (willEnable && !wasEnabled) {
-    state.prevSmoothing = elements.smoothing.checked;
-    state.prevBlurStrength = Number(elements.blurStrength.value) || 0;
-  }
-  applyPixelArtMode(willEnable);
-  syncStateFromInputs();
-  updateAll();
-});
-
-elements.refresh.addEventListener("click", () => {
+elements.smoothing.addEventListener("input", () => {
   syncStateFromInputs();
   updateAll();
 });
@@ -1131,12 +1292,74 @@ elements.printPdf.addEventListener("click", () => {
   printPdf();
 });
 
-elements.copySettingsUrl.addEventListener("click", () => {
-  copySettingsUrl();
+elements.saveProject.addEventListener("click", () => {
+  saveProject();
+});
+
+elements.loadProject.addEventListener("click", () => {
+  elements.projectFile.click();
+});
+
+elements.projectFile.addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  loadProject(file);
+  event.target.value = "";
+});
+
+elements.openManage.addEventListener("click", () => {
+  openManageModal();
+});
+
+elements.manageClose.addEventListener("click", () => {
+  closeManageModal();
+});
+
+elements.manageModal.addEventListener("click", (event) => {
+  if (event.target === elements.manageModal) {
+    closeManageModal();
+  }
+});
+
+elements.managePick.addEventListener("click", () => {
+  state.manageMode = "pick";
+  updateManageToolbar();
+});
+
+elements.managePaint.addEventListener("click", () => {
+  state.manageMode = "paint";
+  updateManageToolbar();
+});
+
+elements.manageCanvas.addEventListener("mousedown", (event) => {
+  if (state.manageMode === "pick") {
+    handleManageClick(event);
+    return;
+  }
+  state.managePainting = true;
+  const index = getManageCellIndex(event);
+  paintManageCell(index);
+});
+
+elements.manageCanvas.addEventListener("mousemove", (event) => {
+  if (!state.managePainting || state.manageMode !== "paint") return;
+  const index = getManageCellIndex(event);
+  paintManageCell(index);
+});
+
+elements.manageCanvas.addEventListener("mouseup", () => {
+  state.managePainting = false;
+});
+
+elements.manageCanvas.addEventListener("mouseleave", () => {
+  state.managePainting = false;
+});
+
+window.addEventListener("mouseup", () => {
+  state.managePainting = false;
 });
 
 elements.legendList.addEventListener("click", (event) => {
-  const visibility = event.target.closest(".legend-visibility");
+  const visibility = event.target.closest(".legend-switch");
   if (visibility) {
     const index = Number(visibility.dataset.index);
     if (!Number.isFinite(index)) return;

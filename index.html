@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Stitchloom - Cross Stitch Converter</title>
+    <title>Lilo - Cross Stitch Converter</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,700&family=Space+Grotesk:wght@400;500;600&family=Noto+Sans+Symbols+2&display=swap"
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Noto+Sans+Symbols+2&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
@@ -17,172 +17,240 @@
       <header class="hero">
         <div>
           <p class="eyebrow">Cross stitch planner</p>
-          <h1>Stitchloom</h1>
+          <div class="brand">
+            <svg class="brand-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <g stroke="currentColor" stroke-width="3" stroke-linecap="round">
+                <line x1="12" y1="12" x2="23" y2="23" />
+                <line x1="23" y1="12" x2="12" y2="23" />
+                <line x1="27" y1="12" x2="38" y2="23" />
+                <line x1="38" y1="12" x2="27" y2="23" />
+                <line x1="42" y1="12" x2="53" y2="23" />
+                <line x1="53" y1="12" x2="42" y2="23" />
+                <line x1="57" y1="12" x2="68" y2="23" />
+                <line x1="68" y1="12" x2="57" y2="23" />
+                <line x1="12" y1="27" x2="23" y2="38" />
+                <line x1="23" y1="27" x2="12" y2="38" />
+                <line x1="57" y1="27" x2="68" y2="38" />
+                <line x1="68" y1="27" x2="57" y2="38" />
+                <line x1="12" y1="42" x2="23" y2="53" />
+                <line x1="23" y1="42" x2="12" y2="53" />
+                <line x1="57" y1="42" x2="68" y2="53" />
+                <line x1="68" y1="42" x2="57" y2="53" />
+                <line x1="12" y1="57" x2="23" y2="68" />
+                <line x1="23" y1="57" x2="12" y2="68" />
+                <line x1="27" y1="57" x2="38" y2="68" />
+                <line x1="38" y1="57" x2="27" y2="68" />
+                <line x1="42" y1="57" x2="53" y2="68" />
+                <line x1="53" y1="57" x2="42" y2="68" />
+                <line x1="57" y1="57" x2="68" y2="68" />
+                <line x1="68" y1="57" x2="57" y2="68" />
+              </g>
+            </svg>
+            <h1>Lilo</h1>
+          </div>
           <p class="lede">
             Turn any photo into a stitch-ready pattern. Upload an image, pick a palette, and
             limit the color count for a clean thread plan.
           </p>
         </div>
-        <div class="hero-card">
-          <p class="hero-title">Workflow</p>
-          <ol>
-            <li>Upload a JPG/PNG</li>
-            <li>Set stitch grid + palette</li>
-            <li>Export PNG or Print to PDF</li>
-          </ol>
+        <div class="hero-card export-card">
+          <p class="hero-title">Export</p>
+          <div class="export-controls">
+            <label class="field">
+              <span>PDF render mode</span>
+              <select id="patternMode">
+                <option value="color-symbols">Color and Icons</option>
+                <option value="color">Only Color</option>
+                <option value="symbols">Only Icons</option>
+              </select>
+            </label>
+            <div class="export-actions">
+              <button id="printPdf" class="primary has-tooltip" data-tip="Download the stitched pattern as a multi-page PDF.">
+                <i data-lucide="file-down"></i>
+                Download PDF
+              </button>
+              <button id="saveProject" class="ghost icon-button">
+                <i data-lucide="save"></i>
+                Save project
+              </button>
+              <button id="loadProject" class="ghost icon-button">
+                <i data-lucide="folder-open"></i>
+                Load project
+              </button>
+              <input id="projectFile" type="file" accept=".lilo" hidden />
+            </div>
+          </div>
         </div>
       </header>
 
       <main class="workspace">
-        <section class="panel controls">
-          <h2>Inputs</h2>
+        <section class="panel controls" x-data="{ open: 'basic' }">
+          <div class="controls-header">
+            <div>
+              <p class="eyebrow">Settings</p>
+              <h2>Settings</h2>
+            </div>
+          </div>
+
           <div class="control-group">
             <h3 class="control-group-title">Image</h3>
             <label class="file-label has-tooltip" for="imageUpload" data-tip="Upload a local JPG or PNG to convert into a pattern.">
               <input id="imageUpload" type="file" accept="image/*" />
+              <i data-lucide="image"></i>
               <span>Choose image</span>
             </label>
-            <p class="hint" id="fileHint">Upload a local image. URL loading is disabled.</p>
+            <p></p>
           </div>
 
-          <div class="control-group">
-            <h3 class="control-group-title">Palette & symbols</h3>
-            <label class="field has-tooltip" data-tip="Select the thread palette used to map colors.">
-              <span>Palette</span>
-              <select id="paletteSelect"></select>
-            </label>
-            <label class="field">
-              <span class="has-tooltip" data-tip="Maximum number of thread colors used in the pattern.">Limit colors</span>
-              <input id="colorLimit" type="range" min="3" max="32" value="10" />
-              <div class="range-meta">
-                <span id="colorLimitValue">10</span>
-                <span class="muted">colors</span>
-              </div>
-            </label>
-            <label class="field">
-              <span class="has-tooltip" data-tip="Adds pixel-level blending between colors for smoother gradients.">Dither strength</span>
-              <input id="ditherStrength" type="range" min="0" max="100" value="0" />
-              <div class="range-meta">
-                <span id="ditherStrengthValue">0</span>
-                <span class="muted">pixel blending</span>
-              </div>
-            </label>
-          </div>
-
-          <div class="control-group">
-            <h3 class="control-group-title">Grid size</h3>
-            <div class="three-col fabric-grid">
-              <label class="field">
-                <span class="has-tooltip" data-tip="Final stitch count across the width.">Grid width (stitches)</span>
-                <input id="gridWidth" type="number" min="10" max="1000" value="80" />
-              </label>
-              <label class="field">
-                <span class="has-tooltip" data-tip="Final stitch count across the height.">Grid height (stitches)</span>
-                <input id="gridHeight" type="number" min="10" max="1000" value="80" />
-              </label>
-            </div>
-            <div class="inline">
-              <label class="check has-tooltip" data-tip="Keep the original image aspect ratio when changing size.">
-                <input id="lockAspect" type="checkbox" checked />
-                <span>Lock aspect ratio</span>
-              </label>
-              <button class="ghost has-tooltip" id="useOriginal" data-tip="Reset grid size to the image’s original pixel dimensions.">
-                Use original size
+          <div class="accordion">
+            <div class="accordion-item" :class="{ open: open === 'basic' }">
+              <button class="accordion-trigger" type="button" @click="open = open === 'basic' ? null : 'basic'">
+                <span class="accordion-title">
+                  <i data-lucide="sliders"></i>
+                  Basic settings
+                </span>
+                <span class="accordion-meta">Colors & grid</span>
               </button>
-            </div>
-          </div>
-
-          <div class="control-group">
-            <h3 class="control-group-title">Stitch rendering</h3>
-            <div class="three-col">
-              <label class="field">
-                <span class="has-tooltip" data-tip="Preview stitch size in pixels.">Stitch size (px)</span>
-                <input id="stitchSize" type="number" min="4" max="30" value="10" />
-              </label>
-              <label class="field">
-                <span class="has-tooltip" data-tip="Softens the image before color mapping.">Blur strength</span>
-                <input id="blurStrength" type="range" min="0" max="4" value="1" step="0.5" />
-                <div class="range-meta">
-                  <span id="blurValue">1</span>
-                  <span class="muted">px</span>
+              <div class="accordion-content" x-show="open === 'basic'" x-transition x-cloak>
+                <div class="control-group">
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Maximum number of thread colors used in the pattern.">Number of colors</span>
+                    <input id="colorLimit" type="range" min="3" max="32" value="10" />
+                    <div class="range-meta">
+                      <span id="colorLimitValue">10</span>
+                      <span class="muted">colors</span>
+                    </div>
+                  </label>
                 </div>
-              </label>
-            </div>
-            <label class="check has-tooltip" data-tip="Smooths the image before color mapping.">
-              <input id="smoothing" type="checkbox" checked />
-              <span>Enable smoothing</span>
-            </label>
-            <label class="check has-tooltip" data-tip="Disables blur and smoothing for crisp pixel art.">
-              <input id="pixelArtMode" type="checkbox" />
-              <span>Pixel art mode (no blur, no smoothing)</span>
-            </label>
-          </div>
-
-          <div class="control-group">
-            <h3 class="control-group-title">Accent colors</h3>
-            <div class="two-col">
-              <label class="field">
-                <span class="has-tooltip" data-tip="Reserve slots for high-saturation colors.">Accent slots</span>
-                <input id="accentSlots" type="number" min="0" max="4" value="2" />
-                <p class="hint">Reserve colors for strong accents.</p>
-              </label>
-            </div>
-          </div>
-
-          <div class="control-group">
-            <h3 class="control-group-title">Fabric sizing</h3>
-            <div class="three-col">
-              <label class="field">
-                <span class="has-tooltip" data-tip="Fabric type presets for common stitch counts.">Fabric type</span>
-                <select id="fabricType"></select>
-              </label>
-              <label class="field">
-                <span class="has-tooltip" data-tip="Stitches per inch or cm for your fabric.">Fabric count</span>
-                <select id="fabricCount"></select>
-              </label>
-              <label class="field">
-                <span class="has-tooltip" data-tip="Use stitches per inch or per cm.">Count unit</span>
-                <select id="fabricUnit">
-                  <option value="inch">Stitches per inch</option>
-                  <option value="cm">Stitches per cm</option>
-                </select>
-              </label>
-            </div>
-            <div class="size-readout">
-              <div>
-                <span class="muted">Estimated size</span>
-                <strong id="sizeCm">0 cm x 0 cm</strong>
-              </div>
-              <div>
-                <span class="muted">In inches</span>
-                <strong id="sizeIn">0 in x 0 in</strong>
+                <div class="control-group">
+                  <h4 class="control-group-title">Grid size</h4>
+                  <div class="three-col fabric-grid">
+                    <label class="field">
+                      <span class="has-tooltip" data-tip="Final stitch count across the width.">Grid width (stitches)</span>
+                      <input id="gridWidth" type="number" min="10" max="1000" value="80" />
+                    </label>
+                    <label class="field">
+                      <span class="has-tooltip" data-tip="Final stitch count across the height.">Grid height (stitches)</span>
+                      <input id="gridHeight" type="number" min="10" max="1000" value="80" />
+                    </label>
+                  </div>
+                  <div class="inline">
+                    <label class="check has-tooltip" data-tip="Keep the original image aspect ratio when changing size.">
+                      <input id="lockAspect" type="checkbox" checked />
+                      <span>Lock aspect ratio</span>
+                    </label>
+                    <button class="ghost has-tooltip" id="useOriginal" data-tip="Reset grid size to the image’s original pixel dimensions.">
+                      Use original size
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="control-group">
-            <h3 class="control-group-title">Export</h3>
-            <div class="inline">
-              <button id="printPdf" class="ghost has-tooltip" data-tip="Download the stitched pattern as a multi-page PDF.">
-                Download PDF
+            <div class="accordion-item" :class="{ open: open === 'palette' }">
+              <button class="accordion-trigger" type="button" @click="open = open === 'palette' ? null : 'palette'">
+                <span class="accordion-title">
+                  <i data-lucide="palette"></i>
+                  Palette
+                </span>
+                <span class="accordion-meta">Color mapping</span>
               </button>
-              <button id="copySettingsUrl" class="ghost has-tooltip" data-tip="Share the current settings as a URL.">
-                Copy settings URL
-              </button>
+              <div class="accordion-content" x-show="open === 'palette'" x-transition x-cloak>
+                <div class="control-group">
+                  <label class="field has-tooltip" data-tip="Select the thread palette used to map colors.">
+                    <span>Palette</span>
+                    <select id="paletteSelect"></select>
+                  </label>
+                </div>
+              </div>
             </div>
-          </div>
 
-          <div class="control-group">
-            <h3 class="control-group-title">PDF output</h3>
-            <label class="field">
-              <span class="has-tooltip" data-tip="Choose how stitches are rendered in the PDF.">PDF pattern mode</span>
-              <select id="patternMode">
-                <option value="color-symbols">Color + symbols</option>
-                <option value="symbols">Symbols only</option>
-                <option value="color">Color only</option>
-              </select>
-            </label>
+            <div class="accordion-item" :class="{ open: open === 'rendering' }">
+              <button class="accordion-trigger" type="button" @click="open = open === 'rendering' ? null : 'rendering'">
+                <span class="accordion-title">
+                  <i data-lucide="sparkles"></i>
+                  Image rendering
+                </span>
+                <span class="accordion-meta">Processing</span>
+              </button>
+              <div class="accordion-content" x-show="open === 'rendering'" x-transition x-cloak>
+                <div class="control-group">
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Adds pixel-level blending between colors for smoother gradients.">Dither strength</span>
+                    <input id="ditherStrength" type="range" min="0" max="100" value="0" />
+                    <div class="range-meta">
+                      <span id="ditherStrengthValue">0</span>
+                      <span class="muted">pixel blending</span>
+                    </div>
+                  </label>
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Softens the image before color mapping.">Blur strength</span>
+                    <input id="blurStrength" type="range" min="0" max="4" value="0" step="0.5" />
+                    <div class="range-meta">
+                      <span id="blurValue">0</span>
+                      <span class="muted">px</span>
+                    </div>
+                  </label>
+                </div>
+                <div class="control-group">
+                  <label class="check has-tooltip" data-tip="Smooths the image before color mapping.">
+                    <input id="smoothing" type="checkbox" />
+                    <span>Enable smoothing</span>
+                  </label>
+                </div>
+                <div class="control-group">
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Reserve slots for high-saturation colors.">Accent slots</span>
+                    <input id="accentSlots" type="number" min="0" max="4" value="2" />
+                    <p class="hint">Reserve colors for strong accents.</p>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div class="accordion-item" :class="{ open: open === 'fabric' }">
+              <button class="accordion-trigger" type="button" @click="open = open === 'fabric' ? null : 'fabric'">
+                <span class="accordion-title">
+                  <i data-lucide="ruler"></i>
+                  Fabric sizing
+                </span>
+                <span class="accordion-meta">Finished size</span>
+              </button>
+              <div class="accordion-content" x-show="open === 'fabric'" x-transition x-cloak>
+                <div class="control-group">
+                  <div class="three-col">
+                    <label class="field">
+                      <span class="has-tooltip" data-tip="Fabric type presets for common stitch counts.">Fabric type</span>
+                      <select id="fabricType"></select>
+                    </label>
+                    <label class="field">
+                      <span class="has-tooltip" data-tip="Stitches per inch or cm for your fabric.">Fabric count</span>
+                      <select id="fabricCount"></select>
+                    </label>
+                    <label class="field">
+                      <span class="has-tooltip" data-tip="Use stitches per inch or per cm.">Count unit</span>
+                      <select id="fabricUnit">
+                        <option value="inch">Stitches per inch</option>
+                        <option value="cm">Stitches per cm</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="size-readout">
+                    <div>
+                      <span class="muted">Estimated size</span>
+                      <strong id="sizeCm">0 cm x 0 cm</strong>
+                    </div>
+                    <div>
+                      <span class="muted">In inches</span>
+                      <strong id="sizeIn">0 in x 0 in</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
+          <input id="stitchSize" type="hidden" value="10" />
         </section>
 
         <section class="panel preview">
@@ -201,7 +269,7 @@
             </div>
           </div>
           <div class="preview-actions">
-            <button id="refresh" class="primary">Update preview</button>
+            <button id="openManage" class="primary">Edit</button>
           </div>
         </section>
 
@@ -234,12 +302,62 @@
           </div>
         </div>
       </div>
+
+      <div class="modal" id="manageModal" aria-hidden="true">
+        <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
+          <div class="modal-header">
+            <div>
+              <p class="eyebrow">Manage</p>
+              <h2 id="manageTitle">Cross stitch preview</h2>
+            </div>
+            <button class="ghost" id="manageClose" type="button">Close</button>
+          </div>
+          <div class="modal-body">
+            <div class="manage-toolbar">
+              <div class="manage-modes">
+                <button id="managePick" class="ghost icon-button">
+                  <i data-lucide="pipette"></i>
+                  Pick color
+                </button>
+                <button id="managePaint" class="ghost icon-button">
+                  <i data-lucide="paintbrush"></i>
+                  Paint
+                </button>
+              </div>
+              <div class="manage-selected">
+                <div id="manageSwatch" class="manage-swatch"></div>
+                <div class="manage-meta">
+                  <strong id="manageColorName">No color selected</strong>
+                  <div id="manageColorCode" class="manage-code"></div>
+                </div>
+              </div>
+            </div>
+            <div class="preview-controls">
+              <label class="field">
+                <span>Zoom</span>
+                <input id="previewZoom" type="range" min="0.5" max="4" step="0.1" value="1" />
+                <div class="range-meta">
+                  <span id="previewZoomValue">1x</span>
+                  <span class="muted">preview scale</span>
+                </div>
+              </label>
+            </div>
+            <div class="preview-scroll">
+              <canvas id="manageCanvas" class="pixel-canvas" width="320" height="240"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <script src="dmc-palette.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/@pdf-lib/fontkit@1.1.1/dist/fontkit.umd.min.js"></script>
     <script src="pdf-export.js"></script>
     <script src="app.js"></script>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
   </body>
 </html>

@@ -1,7 +1,7 @@
 const dmcPalette = 
 {
-  "id": "dmc-floss",
-  "name": "DMC Floss (CrossStitchCreator)",
+  "id": "dmc",
+  "name": "DMC",
   "brand": "DMC",
   "source": "https://raw.githubusercontent.com/adrianj/CrossStitchCreator/master/CrossStitchCreator/Resources/DMC%20Cotton%20Floss%20converted%20to%20RGB%20Values.csv",
   "colors": [
