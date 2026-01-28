@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lilo - Cross Stitch Converter</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -307,10 +308,15 @@
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
           <div class="modal-header">
             <div>
-              <p class="eyebrow">Manage</p>
-              <h2 id="manageTitle">Cross stitch preview</h2>
+              <h2 id="manageTitle">Cross stitch editor</h2>
             </div>
-            <button class="ghost" id="manageClose" type="button">Close</button>
+            <div class="modal-actions">
+              <button class="ghost icon-button" id="manageMaximize" type="button" title="Maximize">
+                <i data-lucide="maximize-2"></i>
+                Maximize
+              </button>
+              <button class="ghost" id="manageClose" type="button">Close</button>
+            </div>
           </div>
           <div class="modal-body">
             <div class="manage-toolbar">
@@ -319,9 +325,24 @@
                   <i data-lucide="pipette"></i>
                   Pick color
                 </button>
+                <span class="manage-help" data-tooltip="Tip: Right-click also picks a color" data-side="bottom">
+                  <i data-lucide="info"></i>
+                </span>
+                <button id="manageSelect" class="ghost icon-button">
+                  <i data-lucide="palette"></i>
+                  Add color
+                </button>
                 <button id="managePaint" class="ghost icon-button">
                   <i data-lucide="paintbrush"></i>
                   Paint
+                </button>
+                <button id="manageUndo" class="ghost icon-button" title="Undo">
+                  <i data-lucide="undo-2"></i>
+                  Undo
+                </button>
+                <button id="manageRedo" class="ghost icon-button" title="Redo">
+                  <i data-lucide="redo-2"></i>
+                  Redo
                 </button>
               </div>
               <div class="manage-selected">
@@ -330,6 +351,7 @@
                   <strong id="manageColorName">No color selected</strong>
                   <div id="manageColorCode" class="manage-code"></div>
                 </div>
+                <span id="managePendingBadge" class="manage-badge">New</span>
               </div>
             </div>
             <div class="preview-controls">

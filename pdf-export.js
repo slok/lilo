@@ -266,6 +266,15 @@
       color: rgb(0, 0, 0),
     });
 
+    const signature = "https://lilo.slok.dev/";
+    page.drawText(signature, {
+      x: PAGE_MARGIN,
+      y: PAGE_MARGIN - 4,
+      size: footerSize,
+      font,
+      color: rgb(0, 0, 0),
+    });
+
     const maxCols = Math.min(TILE_COLS, gridWidth - tileStartX);
     const maxRows = Math.min(TILE_ROWS, gridHeight - tileStartY);
     const centerCol = Math.floor(gridWidth / 2);
@@ -442,6 +451,14 @@
       const footerWidth = font.widthOfTextAtSize(footer, footerSize);
       page.drawText(footer, {
         x: pageWidth - margin - footerWidth,
+        y: margin - 4,
+        size: footerSize,
+        font,
+        color: rgb(0, 0, 0),
+      });
+
+      page.drawText("https://lilo.slok.dev/", {
+        x: margin,
         y: margin - 4,
         size: footerSize,
         font,

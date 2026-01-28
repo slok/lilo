@@ -79,6 +79,15 @@ const state = {
   manageMode: "pick",
   manageColorIndex: null,
   managePainting: false,
+  manageModalOpen: false,
+  manageModalMaximized: false,
+  managePendingColor: null,
+  manageHistory: {
+    undo: [],
+    redo: [],
+    batch: null,
+  },
+  paletteSearchMode: "replace",
   projectMeta: null,
   mappedPixels: null,
   mappedPalette: [],
@@ -110,6 +119,10 @@ const elements = {
   previewZoomValue: document.getElementById("previewZoomValue"),
   managePick: document.getElementById("managePick"),
   managePaint: document.getElementById("managePaint"),
+  manageSelect: document.getElementById("manageSelect"),
+  manageUndo: document.getElementById("manageUndo"),
+  manageRedo: document.getElementById("manageRedo"),
+  managePendingBadge: document.getElementById("managePendingBadge"),
   manageSwatch: document.getElementById("manageSwatch"),
   manageColorName: document.getElementById("manageColorName"),
   manageColorCode: document.getElementById("manageColorCode"),
@@ -133,6 +146,7 @@ const elements = {
   paletteSearchClose: document.getElementById("paletteSearchClose"),
   manageModal: document.getElementById("manageModal"),
   manageClose: document.getElementById("manageClose"),
+  manageMaximize: document.getElementById("manageMaximize"),
 };
 
 const sourceCtx = elements.sourceCanvas.getContext("2d");
@@ -321,7 +335,7 @@ const updateLegend = () => {
 
   state.counts.forEach((count, index) => {
     const color = state.mappedPalette[index];
-    if (!color) return;
+    if (!color || count <= 0) return;
     const symbol = state.symbols[index] || "";
     const hidden = isHiddenColor(color);
 
@@ -372,10 +386,12 @@ const updateLegend = () => {
     visibility.appendChild(visibilityText);
     actions.appendChild(visibility);
     const action = document.createElement("button");
-    action.className = "legend-action";
+    action.className = "legend-action icon-button";
     action.type = "button";
     action.dataset.index = String(index);
-    action.textContent = "Replace";
+    action.setAttribute("aria-label", "Replace the color");
+    action.setAttribute("title", "Replace the color");
+    action.innerHTML = '<i data-lucide="pencil"></i>';
     actions.appendChild(action);
     info.appendChild(title);
     info.appendChild(meta);
@@ -384,6 +400,9 @@ const updateLegend = () => {
     item.appendChild(info);
     elements.legendList.appendChild(item);
   });
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
 };
 
 const getPalette = () => paletteCatalog.find((item) => item.id === state.paletteId);
@@ -426,11 +445,13 @@ const buildSearchResults = (query) => {
   return palette.colors.filter((color) => color.name.toLowerCase().includes(cleaned));
 };
 
-const openPaletteSearch = (index) => {
+const openPaletteSearch = (index, mode = "replace") => {
   if (!state.mappedPalette.length) return;
-  state.activeReplaceIndex = index;
+  state.activeReplaceIndex = mode === "replace" ? index : null;
+  state.paletteSearchMode = mode;
   elements.paletteSearchInput.value = "";
   renderPaletteSearch("");
+  elements.paletteSearchModal.classList.toggle("modal-top", mode === "select");
   elements.paletteSearchModal.classList.add("open");
   elements.paletteSearchModal.setAttribute("aria-hidden", "false");
   elements.paletteSearchInput.focus();
@@ -438,8 +459,10 @@ const openPaletteSearch = (index) => {
 
 const closePaletteSearch = () => {
   elements.paletteSearchModal.classList.remove("open");
+  elements.paletteSearchModal.classList.remove("modal-top");
   elements.paletteSearchModal.setAttribute("aria-hidden", "true");
   state.activeReplaceIndex = null;
+  state.paletteSearchMode = "replace";
 };
 
 const renderPaletteSearch = (query) => {
@@ -501,6 +524,31 @@ const applyPaletteReplacement = (color) => {
   state.symbols[state.activeReplaceIndex] = symbol;
   renderOutput();
   updateLegend();
+  closePaletteSearch();
+};
+
+const selectManageColor = (color) => {
+  if (!state.mappedPalette.length) return;
+  const paletteColor = {
+    ...color,
+    rgb: hexToRgb(color.hex),
+  };
+  paletteColor.lab = rgbToLab(paletteColor.rgb);
+
+  const existingIndex = state.mappedPalette.findIndex((entry) => entry && entry.hex === color.hex);
+  if (existingIndex >= 0) {
+    state.manageColorIndex = existingIndex;
+    state.managePendingColor = null;
+    state.manageMode = "paint";
+    updateManageToolbar();
+    closePaletteSearch();
+    return;
+  }
+
+  state.managePendingColor = paletteColor;
+  state.manageColorIndex = null;
+  state.manageMode = "paint";
+  updateManageToolbar();
   closePaletteSearch();
 };
 
@@ -778,7 +826,16 @@ const updateManageToolbar = () => {
     elements.manageCanvas.classList.toggle("cursor-pick", isPick);
   }
 
-  const color = state.manageColorIndex !== null ? state.mappedPalette[state.manageColorIndex] : null;
+  if (elements.manageUndo) {
+    elements.manageUndo.disabled = state.manageHistory.undo.length === 0;
+  }
+  if (elements.manageRedo) {
+    elements.manageRedo.disabled = state.manageHistory.redo.length === 0;
+  }
+
+  const color =
+    state.managePendingColor ||
+    (state.manageColorIndex !== null ? state.mappedPalette[state.manageColorIndex] : null);
   if (!elements.manageSwatch || !elements.manageColorName || !elements.manageColorCode) return;
   if (!color) {
     elements.manageSwatch.style.background = "#fff";
@@ -789,6 +846,10 @@ const updateManageToolbar = () => {
   elements.manageSwatch.style.background = color.hex;
   elements.manageColorName.textContent = color.name || "Color";
   elements.manageColorCode.textContent = color.code ? `@${color.code}` : "";
+
+  if (elements.managePendingBadge) {
+    elements.managePendingBadge.style.display = state.managePendingColor ? "inline-flex" : "none";
+  }
 };
 
 const updateCountsFromMapped = () => {
@@ -801,6 +862,70 @@ const updateCountsFromMapped = () => {
     }
   }
   state.counts = counts;
+  const usedColors = counts.filter((count) => count > 0).length;
+  const clamped = clampNumber(usedColors || 3, 3, 32);
+  elements.colorLimit.value = clamped;
+  state.colorLimit = clamped;
+  elements.colorLimitValue.textContent = clamped;
+};
+
+const startManageBatch = () => {
+  if (state.manageHistory.batch) return;
+  state.manageHistory.batch = new Map();
+};
+
+const addManageChange = (index, prev, next) => {
+  if (prev === next) return;
+  startManageBatch();
+  if (state.manageHistory.batch.has(index)) {
+    const existing = state.manageHistory.batch.get(index);
+    state.manageHistory.batch.set(index, { prev: existing.prev, next });
+    return;
+  }
+  state.manageHistory.batch.set(index, { prev, next });
+};
+
+const finalizeManageBatch = () => {
+  const batch = state.manageHistory.batch;
+  if (!batch || batch.size === 0) {
+    state.manageHistory.batch = null;
+    return;
+  }
+  const changes = Array.from(batch.entries()).map(([index, change]) => ({
+    index,
+    prev: change.prev,
+    next: change.next,
+  }));
+  state.manageHistory.undo.push(changes);
+  state.manageHistory.redo = [];
+  state.manageHistory.batch = null;
+  updateManageToolbar();
+};
+
+const applyManageBatch = (changes, direction) => {
+  if (!changes) return;
+  changes.forEach(({ index, prev, next }) => {
+    state.mappedPixels[index] = direction === "undo" ? prev : next;
+  });
+  updateCountsFromMapped();
+  renderOutput();
+  updateLegend();
+};
+
+const undoManageChange = () => {
+  const changes = state.manageHistory.undo.pop();
+  if (!changes) return;
+  state.manageHistory.redo.push(changes);
+  applyManageBatch(changes, "undo");
+  updateManageToolbar();
+};
+
+const redoManageChange = () => {
+  const changes = state.manageHistory.redo.pop();
+  if (!changes) return;
+  state.manageHistory.undo.push(changes);
+  applyManageBatch(changes, "redo");
+  updateManageToolbar();
 };
 
 const getManageCellIndex = (event) => {
@@ -818,11 +943,42 @@ const getManageCellIndex = (event) => {
 
 const paintManageCell = (index) => {
   if (!Number.isFinite(index)) return;
+  if (state.manageColorIndex === null && state.managePendingColor) {
+    const pending = state.managePendingColor;
+    const existingIndex = state.mappedPalette.findIndex((entry) => entry && entry.hex === pending.hex);
+    if (existingIndex >= 0) {
+      state.manageColorIndex = existingIndex;
+      state.managePendingColor = null;
+    } else {
+      if (state.mappedPalette.length >= 32) {
+        setStatus("Maximum of 32 colors reached.");
+        showToast("Maximum of 32 colors reached.");
+        return;
+      }
+      const paletteColor = {
+        ...pending,
+        rgb: hexToRgb(pending.hex),
+      };
+      paletteColor.lab = rgbToLab(paletteColor.rgb);
+      state.mappedPalette.push(paletteColor);
+      applySymbolPresetToMapped();
+      state.manageColorIndex = state.mappedPalette.length - 1;
+      state.managePendingColor = null;
+      elements.colorLimit.value = Math.min(32, state.mappedPalette.length);
+      syncStateFromInputs();
+      updateLegend();
+    }
+  }
+
   if (state.manageColorIndex === null) {
     setStatus("Pick a color first.");
     return;
   }
-  state.mappedPixels[index] = state.manageColorIndex;
+  const prev = state.mappedPixels[index];
+  const next = state.manageColorIndex;
+  if (prev === next) return;
+  state.mappedPixels[index] = next;
+  addManageChange(index, prev, next);
   updateCountsFromMapped();
   renderOutput();
   updateLegend();
@@ -835,6 +991,7 @@ const handleManageClick = (event) => {
 
   if (state.manageMode === "pick") {
     state.manageColorIndex = current;
+    state.managePendingColor = null;
     state.manageMode = "paint";
     updateManageToolbar();
     return;
@@ -1233,7 +1390,16 @@ elements.previewZoom.addEventListener("change", () => {
 const openManageModal = () => {
   if (!elements.manageModal) return;
   elements.manageModal.classList.add("open");
+  elements.manageModal.classList.toggle("maximized", state.manageModalMaximized);
   elements.manageModal.setAttribute("aria-hidden", "false");
+  state.manageModalOpen = true;
+  if (window.lucide?.createIcons) {
+    elements.manageMaximize.innerHTML = `
+      <i data-lucide="${state.manageModalMaximized ? "minimize-2" : "maximize-2"}"></i>
+      ${state.manageModalMaximized ? "Restore" : "Maximize"}
+    `;
+    window.lucide.createIcons();
+  }
   updateManageToolbar();
   renderManagePreview();
 };
@@ -1242,6 +1408,8 @@ const closeManageModal = () => {
   if (!elements.manageModal) return;
   elements.manageModal.classList.remove("open");
   elements.manageModal.setAttribute("aria-hidden", "true");
+  state.manageModalOpen = false;
+  finalizeManageBatch();
 };
 
 elements.accentSlots.addEventListener("input", () => {
@@ -1320,9 +1488,25 @@ elements.manageModal.addEventListener("click", (event) => {
   }
 });
 
+elements.manageMaximize.addEventListener("click", () => {
+  state.manageModalMaximized = !state.manageModalMaximized;
+  elements.manageModal.classList.toggle("maximized", state.manageModalMaximized);
+  if (window.lucide?.createIcons) {
+    elements.manageMaximize.innerHTML = `
+      <i data-lucide="${state.manageModalMaximized ? "minimize-2" : "maximize-2"}"></i>
+      ${state.manageModalMaximized ? "Restore" : "Maximize"}
+    `;
+    window.lucide.createIcons();
+  }
+});
+
 elements.managePick.addEventListener("click", () => {
   state.manageMode = "pick";
   updateManageToolbar();
+});
+
+elements.manageSelect.addEventListener("click", () => {
+  openPaletteSearch(null, "select");
 });
 
 elements.managePaint.addEventListener("click", () => {
@@ -1330,12 +1514,31 @@ elements.managePaint.addEventListener("click", () => {
   updateManageToolbar();
 });
 
+elements.manageUndo.addEventListener("click", () => {
+  undoManageChange();
+});
+
+elements.manageRedo.addEventListener("click", () => {
+  redoManageChange();
+});
+
 elements.manageCanvas.addEventListener("mousedown", (event) => {
+  if (event.button === 2) {
+    event.preventDefault();
+    const index = getManageCellIndex(event);
+    if (!Number.isFinite(index)) return;
+    state.manageColorIndex = state.mappedPixels[index];
+    state.managePendingColor = null;
+    state.manageMode = "paint";
+    updateManageToolbar();
+    return;
+  }
   if (state.manageMode === "pick") {
     handleManageClick(event);
     return;
   }
   state.managePainting = true;
+  startManageBatch();
   const index = getManageCellIndex(event);
   paintManageCell(index);
 });
@@ -1346,16 +1549,35 @@ elements.manageCanvas.addEventListener("mousemove", (event) => {
   paintManageCell(index);
 });
 
+elements.manageCanvas.addEventListener("contextmenu", (event) => {
+  event.preventDefault();
+});
+
 elements.manageCanvas.addEventListener("mouseup", () => {
   state.managePainting = false;
+  finalizeManageBatch();
 });
 
 elements.manageCanvas.addEventListener("mouseleave", () => {
   state.managePainting = false;
+  finalizeManageBatch();
 });
 
 window.addEventListener("mouseup", () => {
   state.managePainting = false;
+  finalizeManageBatch();
+});
+
+window.addEventListener("keydown", (event) => {
+  const isMod = event.ctrlKey || event.metaKey;
+  if (!isMod || !state.manageModalOpen) return;
+  if (event.key.toLowerCase() !== "z") return;
+  event.preventDefault();
+  if (event.shiftKey) {
+    redoManageChange();
+  } else {
+    undoManageChange();
+  }
 });
 
 elements.legendList.addEventListener("click", (event) => {
@@ -1395,7 +1617,11 @@ elements.paletteSearchResults.addEventListener("click", (event) => {
   const hex = item.dataset.hex;
   const match = palette.colors.find((color) => color.hex === hex);
   if (!match) return;
-  applyPaletteReplacement(match);
+  if (state.paletteSearchMode === "select") {
+    selectManageColor(match);
+  } else {
+    applyPaletteReplacement(match);
+  }
 });
 
 elements.paletteSearchClose.addEventListener("click", () => {
