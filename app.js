@@ -115,10 +115,12 @@ const elements = {
   fabricCount: document.getElementById("fabricCount"),
   fabricUnit: document.getElementById("fabricUnit"),
   patternMode: document.getElementById("patternMode"),
+  pdfSplit: document.getElementById("pdfSplit"),
   previewZoom: document.getElementById("previewZoom"),
   previewZoomValue: document.getElementById("previewZoomValue"),
   managePick: document.getElementById("managePick"),
   managePaint: document.getElementById("managePaint"),
+  manageBucket: document.getElementById("manageBucket"),
   manageSelect: document.getElementById("manageSelect"),
   manageUndo: document.getElementById("manageUndo"),
   manageRedo: document.getElementById("manageRedo"),
@@ -818,10 +820,13 @@ const renderManagePreview = () => {
 };
 
 const updateManageToolbar = () => {
-  if (!elements.managePick || !elements.managePaint) return;
+  if (!elements.managePick || !elements.managePaint || !elements.manageBucket) return;
   const isPick = state.manageMode === "pick";
+  const isPaint = state.manageMode === "paint";
+  const isBucket = state.manageMode === "bucket";
   elements.managePick.classList.toggle("active", isPick);
-  elements.managePaint.classList.toggle("active", !isPick);
+  elements.managePaint.classList.toggle("active", isPaint);
+  elements.manageBucket.classList.toggle("active", isBucket);
   if (elements.manageCanvas) {
     elements.manageCanvas.classList.toggle("cursor-pick", isPick);
   }
@@ -984,6 +989,71 @@ const paintManageCell = (index) => {
   updateLegend();
 };
 
+const applyManageBucket = (startIndex) => {
+  if (!Number.isFinite(startIndex)) return;
+  if (state.manageColorIndex === null && state.managePendingColor) {
+    const pending = state.managePendingColor;
+    const existingIndex = state.mappedPalette.findIndex((entry) => entry && entry.hex === pending.hex);
+    if (existingIndex >= 0) {
+      state.manageColorIndex = existingIndex;
+      state.managePendingColor = null;
+    } else {
+      if (state.mappedPalette.length >= 32) {
+        setStatus("Maximum of 32 colors reached.");
+        showToast("Maximum of 32 colors reached.");
+        return;
+      }
+      const paletteColor = {
+        ...pending,
+        rgb: hexToRgb(pending.hex),
+      };
+      paletteColor.lab = rgbToLab(paletteColor.rgb);
+      state.mappedPalette.push(paletteColor);
+      applySymbolPresetToMapped();
+      state.manageColorIndex = state.mappedPalette.length - 1;
+      state.managePendingColor = null;
+      elements.colorLimit.value = Math.min(32, state.mappedPalette.length);
+      syncStateFromInputs();
+      updateLegend();
+    }
+  }
+
+  if (state.manageColorIndex === null) {
+    setStatus("Pick a color first.");
+    return;
+  }
+
+  const target = state.mappedPixels[startIndex];
+  const replacement = state.manageColorIndex;
+  if (target === replacement) return;
+
+  startManageBatch();
+  const stack = [startIndex];
+  const visited = new Set();
+
+  while (stack.length) {
+    const index = stack.pop();
+    if (visited.has(index)) continue;
+    visited.add(index);
+    if (state.mappedPixels[index] !== target) continue;
+    const prev = state.mappedPixels[index];
+    state.mappedPixels[index] = replacement;
+    addManageChange(index, prev, replacement);
+
+    const row = Math.floor(index / state.gridWidth);
+    const col = index % state.gridWidth;
+    if (col > 0) stack.push(index - 1);
+    if (col < state.gridWidth - 1) stack.push(index + 1);
+    if (row > 0) stack.push(index - state.gridWidth);
+    if (row < state.gridHeight - 1) stack.push(index + state.gridWidth);
+  }
+
+  finalizeManageBatch();
+  updateCountsFromMapped();
+  renderOutput();
+  updateLegend();
+};
+
 const handleManageClick = (event) => {
   const index = getManageCellIndex(event);
   if (!Number.isFinite(index)) return;
@@ -994,6 +1064,10 @@ const handleManageClick = (event) => {
     state.managePendingColor = null;
     state.manageMode = "paint";
     updateManageToolbar();
+    return;
+  }
+  if (state.manageMode === "bucket") {
+    applyManageBucket(index);
     return;
   }
   paintManageCell(index);
@@ -1310,6 +1384,7 @@ const printPdf = () => {
     fabricUnit: state.fabricUnit,
     patternMode: state.patternMode,
     hiddenColors: state.hiddenColors,
+    splitMode: elements.pdfSplit.checked,
   });
 };
 
@@ -1396,7 +1471,6 @@ const openManageModal = () => {
   if (window.lucide?.createIcons) {
     elements.manageMaximize.innerHTML = `
       <i data-lucide="${state.manageModalMaximized ? "minimize-2" : "maximize-2"}"></i>
-      ${state.manageModalMaximized ? "Restore" : "Maximize"}
     `;
     window.lucide.createIcons();
   }
@@ -1494,7 +1568,6 @@ elements.manageMaximize.addEventListener("click", () => {
   if (window.lucide?.createIcons) {
     elements.manageMaximize.innerHTML = `
       <i data-lucide="${state.manageModalMaximized ? "minimize-2" : "maximize-2"}"></i>
-      ${state.manageModalMaximized ? "Restore" : "Maximize"}
     `;
     window.lucide.createIcons();
   }
@@ -1511,6 +1584,11 @@ elements.manageSelect.addEventListener("click", () => {
 
 elements.managePaint.addEventListener("click", () => {
   state.manageMode = "paint";
+  updateManageToolbar();
+});
+
+elements.manageBucket.addEventListener("click", () => {
+  state.manageMode = "bucket";
   updateManageToolbar();
 });
 
@@ -1534,6 +1612,10 @@ elements.manageCanvas.addEventListener("mousedown", (event) => {
     return;
   }
   if (state.manageMode === "pick") {
+    handleManageClick(event);
+    return;
+  }
+  if (state.manageMode === "bucket") {
     handleManageClick(event);
     return;
   }

@@ -113,6 +113,8 @@
     font,
     symbolFont,
     pageNumber,
+    tileCols = TILE_COLS,
+    tileRows = TILE_ROWS,
   }) => {
     const pageWidth = page.getWidth();
     const pageHeight = page.getHeight();
@@ -120,9 +122,9 @@
     const availableWidth = pageWidth - PAGE_MARGIN * 2 - LEFT_INDEX_WIDTH;
     const availableHeight = pageHeight - PAGE_MARGIN * 2 - FOOTER_HEIGHT - TOP_INDEX_HEIGHT;
 
-    const cellSize = Math.min(availableWidth / TILE_COLS, availableHeight / TILE_ROWS);
-    const gridPixelWidth = cellSize * TILE_COLS;
-    const gridPixelHeight = cellSize * TILE_ROWS;
+    const cellSize = Math.min(availableWidth / tileCols, availableHeight / tileRows);
+    const gridPixelWidth = cellSize * tileCols;
+    const gridPixelHeight = cellSize * tileRows;
 
     const gridLeft = PAGE_MARGIN + LEFT_INDEX_WIDTH;
     const gridBottom = PAGE_MARGIN + FOOTER_HEIGHT;
@@ -141,10 +143,10 @@
     const useSymbolFont = Boolean(symbolFont);
     const symbolOffsetY = useSymbolFont ? symbolSize * 0.35 : 0;
 
-    for (let row = 0; row < TILE_ROWS; row += 1) {
+    for (let row = 0; row < tileRows; row += 1) {
       const globalRow = tileStartY + row;
       if (globalRow >= gridHeight) break;
-      for (let col = 0; col < TILE_COLS; col += 1) {
+      for (let col = 0; col < tileCols; col += 1) {
         const globalCol = tileStartX + col;
         if (globalCol >= gridWidth) break;
         const index = globalRow * gridWidth + globalCol;
@@ -196,7 +198,7 @@
       }
     }
 
-    for (let col = 0; col <= TILE_COLS; col += 1) {
+    for (let col = 0; col <= tileCols; col += 1) {
       const x = gridLeft + col * cellSize;
       const isMajor = col % 10 === 0;
       page.drawLine({
@@ -207,7 +209,7 @@
       });
     }
 
-    for (let row = 0; row <= TILE_ROWS; row += 1) {
+    for (let row = 0; row <= tileRows; row += 1) {
       const y = gridTop - row * cellSize;
       const isMajor = row % 10 === 0;
       page.drawLine({
@@ -222,7 +224,7 @@
     const indexColor = rgb(0, 0, 0);
 
     const startColNumber = Math.ceil(tileStartX / 10) * 10;
-    for (let value = startColNumber; value <= tileStartX + TILE_COLS; value += 10) {
+    for (let value = startColNumber; value <= tileStartX + tileCols; value += 10) {
       if (value === 0) continue;
       if (value > gridWidth) continue;
       const offset = value - tileStartX;
@@ -239,7 +241,7 @@
     }
 
     const startRowNumber = Math.ceil(tileStartY / 10) * 10;
-    for (let value = startRowNumber; value <= tileStartY + TILE_ROWS; value += 10) {
+    for (let value = startRowNumber; value <= tileStartY + tileRows; value += 10) {
       if (value === 0) continue;
       if (value > gridHeight) continue;
       const offset = value - tileStartY;
@@ -275,8 +277,8 @@
       color: rgb(0, 0, 0),
     });
 
-    const maxCols = Math.min(TILE_COLS, gridWidth - tileStartX);
-    const maxRows = Math.min(TILE_ROWS, gridHeight - tileStartY);
+    const maxCols = Math.min(tileCols, gridWidth - tileStartX);
+    const maxRows = Math.min(tileRows, gridHeight - tileStartY);
     const centerCol = Math.floor(gridWidth / 2);
     const centerRow = Math.floor(gridHeight / 2);
 
@@ -305,9 +307,9 @@
     fontBold,
     symbolFont,
     pageStart,
+    pageSize = [A4_WIDTH, A4_HEIGHT],
   }) => {
-    const pageWidth = A4_WIDTH;
-    const pageHeight = A4_HEIGHT;
+    const [pageWidth, pageHeight] = pageSize;
     const margin = PAGE_MARGIN;
     const headerTop = pageHeight - margin;
     const legendTitle = "Legend";
@@ -354,7 +356,7 @@
     let pageNumber = pageStart;
 
     while (currentIndex < items.length) {
-      const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+      const page = pdfDoc.addPage([pageWidth, pageHeight]);
 
       page.drawText(legendTitle, {
         x: margin,
@@ -482,6 +484,7 @@
     fabricUnit,
     patternMode,
     hiddenColors = [],
+    splitMode = true,
   }) => {
     if (!mappedPixels || !gridWidth || !gridHeight) return;
 
@@ -506,26 +509,50 @@
     const hiddenSet = new Set(hiddenColors.map((hex) => hex.toLowerCase()));
 
     let pageNumber = 1;
-    for (let tileY = 0; tileY < tilesY; tileY += 1) {
-      for (let tileX = 0; tileX < tilesX; tileX += 1) {
-        const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
-        drawGridPage({
-          page,
-          tileStartX: tileX * TILE_COLS,
-          tileStartY: tileY * TILE_ROWS,
-          gridWidth,
-          gridHeight,
-          mappedPixels,
-          palette: mappedPalette,
-          symbols,
-          patternMode,
-          hiddenSet,
-          font,
-          symbolFont,
-          pageNumber,
-        });
-        pageNumber += 1;
+    const singlePageLandscape = !splitMode && gridWidth > gridHeight;
+    const singlePageSize = singlePageLandscape ? [A4_HEIGHT, A4_WIDTH] : [A4_WIDTH, A4_HEIGHT];
+    if (splitMode) {
+      for (let tileY = 0; tileY < tilesY; tileY += 1) {
+        for (let tileX = 0; tileX < tilesX; tileX += 1) {
+          const page = pdfDoc.addPage([A4_WIDTH, A4_HEIGHT]);
+          drawGridPage({
+            page,
+            tileStartX: tileX * TILE_COLS,
+            tileStartY: tileY * TILE_ROWS,
+            gridWidth,
+            gridHeight,
+            mappedPixels,
+            palette: mappedPalette,
+            symbols,
+            patternMode,
+            hiddenSet,
+            font,
+            symbolFont,
+            pageNumber,
+          });
+          pageNumber += 1;
+        }
       }
+    } else {
+      const page = pdfDoc.addPage(singlePageSize);
+      drawGridPage({
+        page,
+        tileStartX: 0,
+        tileStartY: 0,
+        gridWidth,
+        gridHeight,
+        mappedPixels,
+        palette: mappedPalette,
+        symbols,
+        patternMode,
+        hiddenSet,
+        font,
+        symbolFont,
+        pageNumber,
+        tileCols: gridWidth,
+        tileRows: gridHeight,
+      });
+      pageNumber += 1;
     }
 
     const legendItems = buildLegendItems(counts, mappedPalette, symbols, hiddenSet);
@@ -541,6 +568,7 @@
       fontBold,
       symbolFont,
       pageStart: pageNumber,
+      pageSize: splitMode ? [A4_WIDTH, A4_HEIGHT] : singlePageSize,
     });
 
     const pdfBytes = await pdfDoc.save();

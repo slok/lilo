@@ -114,6 +114,15 @@ p {
   max-width: 360px;
 }
 
+.export-mode {
+  display: grid;
+  gap: 10px;
+}
+
+.export-split {
+  justify-content: flex-start;
+}
+
 .export-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -453,6 +462,29 @@ input[type="range"] {
   gap: 8px;
 }
 
+.button-group {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.button-group .ghost {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.button-group .ghost + .ghost {
+  border-left: 1px solid var(--border);
+}
+
+.button-group .ghost:hover {
+  box-shadow: none;
+}
+
 .manage-help {
   display: inline-flex;
   align-items: center;
@@ -465,35 +497,56 @@ input[type="range"] {
   height: 16px;
 }
 
-.manage-help::after {
-  content: attr(data-tooltip);
+.modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.manage-popover {
   position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%) translateY(4px);
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
   background: #111216;
   color: #fff;
-  font-size: 12px;
-  line-height: 1.4;
-  padding: 6px 10px;
-  border-radius: 10px;
-  white-space: nowrap;
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.25);
   opacity: 0;
+  transform: translateY(-4px);
   pointer-events: none;
   transition: opacity 0.15s ease, transform 0.15s ease;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
   z-index: 10;
 }
 
-.manage-help[data-side="bottom"]::after {
-  bottom: auto;
-  top: calc(100% + 8px);
-  transform: translateX(-50%) translateY(-4px);
+.manage-popover-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+  color: #cbd5f5;
 }
 
-.manage-help:hover::after {
+.manage-popover ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.manage-popover li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.manage-help:hover .manage-popover {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateY(0);
 }
 
 .icon-button {
