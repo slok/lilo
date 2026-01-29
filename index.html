@@ -57,14 +57,20 @@
         <div class="hero-card export-card">
           <p class="hero-title">Export</p>
           <div class="export-controls">
-            <label class="field">
-              <span>PDF render mode</span>
-              <select id="patternMode">
-                <option value="color-symbols">Color and Icons</option>
-                <option value="color">Only Color</option>
-                <option value="symbols">Only Icons</option>
-              </select>
-            </label>
+            <div class="export-mode">
+              <label class="field">
+                <span>PDF render mode</span>
+                <select id="patternMode">
+                  <option value="color-symbols">Color and Icons</option>
+                  <option value="color">Only Color</option>
+                  <option value="symbols">Only Icons</option>
+                </select>
+              </label>
+              <label class="switch export-split">
+                <input id="pdfSplit" type="checkbox" role="switch" class="switch-input" checked />
+                <span>Splitted</span>
+              </label>
+            </div>
             <div class="export-actions">
               <button id="printPdf" class="primary has-tooltip" data-tip="Download the stitched pattern as a multi-page PDF.">
                 <i data-lucide="file-down"></i>
@@ -88,7 +94,6 @@
         <section class="panel controls" x-data="{ open: 'basic' }">
           <div class="controls-header">
             <div>
-              <p class="eyebrow">Settings</p>
               <h2>Settings</h2>
             </div>
           </div>
@@ -308,42 +313,61 @@
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="manageTitle">
           <div class="modal-header">
             <div>
-              <h2 id="manageTitle">Cross stitch editor</h2>
+              <div class="modal-title">
+                <h2 id="manageTitle">Cross stitch editor</h2>
+                <span class="manage-help">
+                  <i data-lucide="command"></i>
+                  <div class="manage-popover">
+                    <div class="manage-popover-title">Keybindings</div>
+                    <ul>
+                      <li><kbd class="kbd">Right click</kbd> Select color</li>
+                      <li><kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">Z</kbd> Undo</li>
+                      <li><kbd class="kbd">Ctrl</kbd> + <kbd class="kbd">Shift</kbd> + <kbd class="kbd">Z</kbd> Redo</li>
+                    </ul>
+                  </div>
+                </span>
+              </div>
             </div>
             <div class="modal-actions">
               <button class="ghost icon-button" id="manageMaximize" type="button" title="Maximize">
                 <i data-lucide="maximize-2"></i>
-                Maximize
               </button>
-              <button class="ghost" id="manageClose" type="button">Close</button>
+              <button class="ghost icon-button" id="manageClose" type="button" aria-label="Close">
+                <i data-lucide="x"></i>
+              </button>
             </div>
           </div>
           <div class="modal-body">
             <div class="manage-toolbar">
               <div class="manage-modes">
-                <button id="managePick" class="ghost icon-button">
-                  <i data-lucide="pipette"></i>
-                  Pick color
-                </button>
-                <span class="manage-help" data-tooltip="Tip: Right-click also picks a color" data-side="bottom">
-                  <i data-lucide="info"></i>
-                </span>
+                <div role="group" class="button-group">
+                  <button id="managePick" class="ghost icon-button">
+                    <i data-lucide="pipette"></i>
+                    Pick
+                  </button>
+                  <button id="managePaint" class="ghost icon-button">
+                    <i data-lucide="paintbrush"></i>
+                    Paint
+                  </button>
+                  <button id="manageBucket" class="ghost icon-button">
+                    <i data-lucide="paint-bucket"></i>
+                    Fill
+                  </button>
+                </div>
                 <button id="manageSelect" class="ghost icon-button">
                   <i data-lucide="palette"></i>
                   Add color
                 </button>
-                <button id="managePaint" class="ghost icon-button">
-                  <i data-lucide="paintbrush"></i>
-                  Paint
-                </button>
-                <button id="manageUndo" class="ghost icon-button" title="Undo">
-                  <i data-lucide="undo-2"></i>
-                  Undo
-                </button>
-                <button id="manageRedo" class="ghost icon-button" title="Redo">
-                  <i data-lucide="redo-2"></i>
-                  Redo
-                </button>
+                <div role="group" class="button-group">
+                  <button id="manageUndo" class="ghost icon-button" title="Undo">
+                    <i data-lucide="undo-2"></i>
+                    Undo
+                  </button>
+                  <button id="manageRedo" class="ghost icon-button" title="Redo">
+                    <i data-lucide="redo-2"></i>
+                    Redo
+                  </button>
+                </div>
               </div>
               <div class="manage-selected">
                 <div id="manageSwatch" class="manage-swatch"></div>
