@@ -1365,7 +1365,13 @@ const handleFile = (file) => {
   reader.readAsDataURL(file);
 };
 
-const printPdf = () => {
+const setPdfLoading = (loading) => {
+  if (!elements.printPdf) return;
+  elements.printPdf.classList.toggle("loading", loading);
+  elements.printPdf.disabled = loading;
+};
+
+const printPdf = async () => {
   if (!state.mappedPixels) return;
   if (!window.LiloPdf?.downloadPatternPdf) {
     setStatus("PDF export is unavailable.");
@@ -1373,19 +1379,24 @@ const printPdf = () => {
   }
 
   syncStateFromInputs();
-  window.LiloPdf.downloadPatternPdf({
-    gridWidth: state.gridWidth,
-    gridHeight: state.gridHeight,
-    mappedPixels: state.mappedPixels,
-    mappedPalette: state.mappedPalette,
-    counts: state.counts,
-    symbols: state.symbols,
-    fabricCount: state.fabricCount,
-    fabricUnit: state.fabricUnit,
-    patternMode: state.patternMode,
-    hiddenColors: state.hiddenColors,
-    splitMode: elements.pdfSplit.checked,
-  });
+  try {
+    setPdfLoading(true);
+    await window.LiloPdf.downloadPatternPdf({
+      gridWidth: state.gridWidth,
+      gridHeight: state.gridHeight,
+      mappedPixels: state.mappedPixels,
+      mappedPalette: state.mappedPalette,
+      counts: state.counts,
+      symbols: state.symbols,
+      fabricCount: state.fabricCount,
+      fabricUnit: state.fabricUnit,
+      patternMode: state.patternMode,
+      hiddenColors: state.hiddenColors,
+      splitMode: elements.pdfSplit.checked,
+    });
+  } finally {
+    setPdfLoading(false);
+  }
 };
 
 populatePalettes();
@@ -1660,6 +1671,11 @@ window.addEventListener("keydown", (event) => {
   } else {
     undoManageChange();
   }
+});
+
+window.addEventListener("beforeunload", (event) => {
+  event.preventDefault();
+  event.returnValue = "Are you sure you want to close lilo?";
 });
 
 elements.legendList.addEventListener("click", (event) => {
