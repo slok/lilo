@@ -365,6 +365,38 @@ input[type="range"] {
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
+.primary.loading {
+  position: relative;
+  color: transparent;
+  pointer-events: none;
+}
+
+.primary.loading svg {
+  opacity: 0;
+}
+
+.spinner {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+  position: absolute;
+  right: 16px;
+}
+
+.primary.loading .spinner {
+  display: inline-block;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .primary {
   background: var(--accent);
   color: #fff;
