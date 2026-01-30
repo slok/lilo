@@ -271,6 +271,12 @@ p {
   font-weight: 600;
 }
 
+.file-label.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .file-label input {
   display: none;
 }
@@ -363,6 +369,14 @@ input[type="range"] {
   border: 1px solid var(--border);
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.primary:disabled,
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
 .primary.loading {
@@ -741,6 +755,12 @@ canvas {
 .legend-list {
   display: grid;
   gap: 12px;
+}
+
+.legend-footer {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .legend-item {

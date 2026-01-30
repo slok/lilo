@@ -67,6 +67,8 @@ const state = {
   gridHeight: 80,
   colorLimit: 10,
   ditherStrength: 0,
+  brightness: 0,
+  contrast: 0,
   paletteId: defaultPaletteId,
   blurStrength: 0,
   smoothing: false,
@@ -103,6 +105,10 @@ const elements = {
   colorLimitValue: document.getElementById("colorLimitValue"),
   ditherStrength: document.getElementById("ditherStrength"),
   ditherStrengthValue: document.getElementById("ditherStrengthValue"),
+  brightness: document.getElementById("brightness"),
+  brightnessValue: document.getElementById("brightnessValue"),
+  contrast: document.getElementById("contrast"),
+  contrastValue: document.getElementById("contrastValue"),
   gridWidth: document.getElementById("gridWidth"),
   gridHeight: document.getElementById("gridHeight"),
   lockAspect: document.getElementById("lockAspect"),
@@ -140,6 +146,7 @@ const elements = {
   outputCanvas: document.getElementById("outputCanvas"),
   manageCanvas: document.getElementById("manageCanvas"),
   legendList: document.getElementById("legendList"),
+  mergeDuplicateColors: document.getElementById("mergeDuplicateColors"),
   status: document.getElementById("status"),
   paletteSearchModal: document.getElementById("paletteSearchModal"),
   paletteSearchInput: document.getElementById("paletteSearchInput"),
@@ -296,6 +303,19 @@ const setStatus = (message) => {
   elements.status.textContent = message;
 };
 
+const setImageLocked = (locked) => {
+  if (elements.imageUpload) {
+    elements.imageUpload.disabled = locked;
+  }
+  const label = document.getElementById("imageUploadLabel");
+  if (label) {
+    label.classList.toggle("is-disabled", locked);
+  }
+  if (elements.loadProject) {
+    elements.loadProject.disabled = locked;
+  }
+};
+
 const getProjectMeta = () => {
   const now = new Date().toISOString();
   if (!state.projectMeta) {
@@ -332,6 +352,7 @@ const updateLegend = () => {
     empty.className = "hint";
     empty.textContent = "Legend will populate after conversion.";
     elements.legendList.appendChild(empty);
+    updateMergeDuplicateButton();
     return;
   }
 
@@ -405,6 +426,7 @@ const updateLegend = () => {
   if (window.lucide?.createIcons) {
     window.lucide.createIcons();
   }
+  updateMergeDuplicateButton();
 };
 
 const getPalette = () => paletteCatalog.find((item) => item.id === state.paletteId);
@@ -412,6 +434,31 @@ const getPalette = () => paletteCatalog.find((item) => item.id === state.palette
 const getSymbolSet = () => glyphSymbols;
 
 const normalizeHex = (hex) => hex.toLowerCase();
+
+const countDuplicateColors = () => {
+  if (!state.mappedPalette.length) return 0;
+  const seen = new Set();
+  let duplicates = 0;
+  state.mappedPalette.forEach((color) => {
+    if (!color) return;
+    const hex = normalizeHex(color.hex);
+    if (seen.has(hex)) {
+      duplicates += 1;
+    } else {
+      seen.add(hex);
+    }
+  });
+  return duplicates;
+};
+
+const updateMergeDuplicateButton = () => {
+  if (!elements.mergeDuplicateColors) return;
+  const duplicates = countDuplicateColors();
+  elements.mergeDuplicateColors.disabled = duplicates === 0;
+  elements.mergeDuplicateColors.title = duplicates
+    ? `Merge ${duplicates} duplicate ${duplicates === 1 ? "color" : "colors"}`
+    : "No duplicate colors to merge";
+};
 
 const getHiddenSet = () => new Set(state.hiddenColors.map(normalizeHex));
 
@@ -611,7 +658,17 @@ const resizeForGrid = () => {
   resizedCtx.clearRect(0, 0, resized.width, resized.height);
   resizedCtx.imageSmoothingEnabled = state.smoothing;
   resizedCtx.imageSmoothingQuality = state.smoothing ? "high" : "low";
-  resizedCtx.filter = state.blurStrength > 0 ? `blur(${state.blurStrength}px)` : "none";
+  const filters = [];
+  if (state.blurStrength > 0) {
+    filters.push(`blur(${state.blurStrength}px)`);
+  }
+  if (state.brightness !== 0) {
+    filters.push(`brightness(${100 + state.brightness}%)`);
+  }
+  if (state.contrast !== 0) {
+    filters.push(`contrast(${100 + state.contrast}%)`);
+  }
+  resizedCtx.filter = filters.length ? filters.join(" ") : "none";
   resizedCtx.drawImage(offscreen, 0, 0, resized.width, resized.height);
   resizedCtx.filter = "none";
 };
@@ -872,6 +929,64 @@ const updateCountsFromMapped = () => {
   elements.colorLimit.value = clamped;
   state.colorLimit = clamped;
   elements.colorLimitValue.textContent = clamped;
+};
+
+const mergeDuplicateColors = () => {
+  if (!state.mappedPalette.length || !state.mappedPixels) {
+    showToast("No colors to merge.");
+    return;
+  }
+  const duplicates = countDuplicateColors();
+  if (duplicates === 0) {
+    showToast("No duplicate colors to merge.");
+    return;
+  }
+
+  const indexMap = new Map();
+  const remap = new Array(state.mappedPalette.length);
+  const mergedPalette = [];
+  const mergedSymbols = [];
+
+  state.mappedPalette.forEach((color, index) => {
+    if (!color) return;
+    const hex = normalizeHex(color.hex);
+    const existing = indexMap.get(hex);
+    if (existing !== undefined) {
+      remap[index] = existing;
+      return;
+    }
+    const newIndex = mergedPalette.length;
+    indexMap.set(hex, newIndex);
+    remap[index] = newIndex;
+    const symbol = state.symbols[index] || color.symbol || "?";
+    mergedPalette.push({ ...color, symbol });
+    mergedSymbols.push(symbol);
+  });
+
+  for (let i = 0; i < state.mappedPixels.length; i += 1) {
+    const prev = state.mappedPixels[i];
+    if (!Number.isFinite(prev)) continue;
+    const next = remap[prev];
+    if (Number.isFinite(next)) {
+      state.mappedPixels[i] = next;
+    }
+  }
+
+  const uniqueHidden = new Set(state.hiddenColors.map(normalizeHex));
+  state.hiddenColors = Array.from(uniqueHidden);
+
+  state.mappedPalette = mergedPalette;
+  state.symbols = mergedSymbols;
+  if (state.manageColorIndex !== null) {
+    const nextIndex = remap[state.manageColorIndex];
+    state.manageColorIndex = Number.isFinite(nextIndex) ? nextIndex : null;
+  }
+
+  updateCountsFromMapped();
+  updateManageToolbar();
+  renderOutput();
+  updateLegend();
+  showToast(`Merged ${duplicates} duplicate ${duplicates === 1 ? "color" : "colors"}.`);
 };
 
 const startManageBatch = () => {
@@ -1163,6 +1278,8 @@ const syncStateFromInputs = () => {
   state.gridHeight = clampNumber(Number(elements.gridHeight.value) || 10, 10, 1000);
   state.colorLimit = clampNumber(Number(elements.colorLimit.value) || 10, 2, 32);
   state.ditherStrength = clampNumber(Number(elements.ditherStrength.value) || 0, 0, 100);
+  state.brightness = clampNumber(Number(elements.brightness.value) || 0, -50, 50);
+  state.contrast = clampNumber(Number(elements.contrast.value) || 0, -50, 50);
   state.paletteId = elements.paletteSelect.value || "";
   state.blurStrength = Number(elements.blurStrength.value) || 0;
   state.smoothing = elements.smoothing.checked;
@@ -1174,6 +1291,8 @@ const syncStateFromInputs = () => {
 
   elements.colorLimitValue.textContent = state.colorLimit;
   elements.ditherStrengthValue.textContent = state.ditherStrength;
+  elements.brightnessValue.textContent = state.brightness;
+  elements.contrastValue.textContent = state.contrast;
   elements.blurValue.textContent = state.blurStrength;
   updateFabricSizes();
 };
@@ -1186,6 +1305,8 @@ const buildProjectData = () => {
     gridHeight: state.gridHeight,
     colorLimit: state.colorLimit,
     ditherStrength: state.ditherStrength,
+    brightness: state.brightness,
+    contrast: state.contrast,
     blurStrength: state.blurStrength,
     smoothing: state.smoothing,
     accentSlots: state.accentSlots,
@@ -1254,6 +1375,8 @@ const applyProjectSettings = (settings) => {
   if (Number.isFinite(settings.gridHeight)) elements.gridHeight.value = settings.gridHeight;
   if (Number.isFinite(settings.colorLimit)) elements.colorLimit.value = settings.colorLimit;
   if (Number.isFinite(settings.ditherStrength)) elements.ditherStrength.value = settings.ditherStrength;
+  if (Number.isFinite(settings.brightness)) elements.brightness.value = settings.brightness;
+  if (Number.isFinite(settings.contrast)) elements.contrast.value = settings.contrast;
   if (Number.isFinite(settings.blurStrength)) elements.blurStrength.value = settings.blurStrength;
   if (typeof settings.smoothing === "boolean") elements.smoothing.checked = settings.smoothing;
   if (Number.isFinite(settings.accentSlots)) elements.accentSlots.value = settings.accentSlots;
@@ -1309,6 +1432,7 @@ const loadProject = async (file) => {
     state.projectMeta = null;
   }
   applyProjectSettings(project.settings || {});
+  setImageLocked(true);
 
   const imageFile = zip.file("image.png");
   if (imageFile) {
@@ -1349,6 +1473,7 @@ const handleFile = (file) => {
       state.imageWidth = img.naturalWidth;
       state.imageHeight = img.naturalHeight;
       state.aspectRatio = state.imageWidth / state.imageHeight;
+      setImageLocked(true);
 
       const targetWidth = clampNumber(state.imageWidth, 30, 120);
       const targetHeight = Math.round(targetWidth / state.aspectRatio);
@@ -1427,6 +1552,26 @@ elements.colorLimit.addEventListener("change", () => {
 
 elements.ditherStrength.addEventListener("input", () => {
   syncStateFromInputs();
+});
+
+elements.ditherStrength.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.brightness.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.brightness.addEventListener("change", () => {
+  updateAll();
+});
+
+elements.contrast.addEventListener("input", () => {
+  syncStateFromInputs();
+});
+
+elements.contrast.addEventListener("change", () => {
+  updateAll();
 });
 
 elements.ditherStrength.addEventListener("change", () => {
@@ -1696,6 +1841,12 @@ elements.legendList.addEventListener("click", (event) => {
   if (!Number.isFinite(index)) return;
   openPaletteSearch(index);
 });
+
+if (elements.mergeDuplicateColors) {
+  elements.mergeDuplicateColors.addEventListener("click", () => {
+    mergeDuplicateColors();
+  });
+}
 
 elements.paletteSearchInput.addEventListener("input", (event) => {
   renderPaletteSearch(event.target.value);

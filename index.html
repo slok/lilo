@@ -101,7 +101,7 @@
 
           <div class="control-group">
             <h3 class="control-group-title">Image</h3>
-            <label class="file-label has-tooltip" for="imageUpload" data-tip="Upload a local JPG or PNG to convert into a pattern.">
+            <label id="imageUploadLabel" class="file-label has-tooltip" for="imageUpload" data-tip="Upload a local JPG or PNG to convert into a pattern.">
               <input id="imageUpload" type="file" accept="image/*" />
               <i data-lucide="image"></i>
               <span>Choose image</span>
@@ -188,6 +188,22 @@
                     <div class="range-meta">
                       <span id="ditherStrengthValue">0</span>
                       <span class="muted">pixel blending</span>
+                    </div>
+                  </label>
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Adjusts overall image brightness.">Brightness</span>
+                    <input id="brightness" type="range" min="-50" max="50" value="0" />
+                    <div class="range-meta">
+                      <span id="brightnessValue">0</span>
+                      <span class="muted">% adjust</span>
+                    </div>
+                  </label>
+                  <label class="field">
+                    <span class="has-tooltip" data-tip="Adjusts contrast between light and dark areas.">Contrast</span>
+                    <input id="contrast" type="range" min="-50" max="50" value="0" />
+                    <div class="range-meta">
+                      <span id="contrastValue">0</span>
+                      <span class="muted">% adjust</span>
                     </div>
                   </label>
                   <label class="field">
@@ -284,6 +300,12 @@
           <h2>Legend</h2>
           <div id="legendList" class="legend-list">
             <p class="hint">Legend will populate after conversion.</p>
+          </div>
+          <div class="legend-footer">
+            <button id="mergeDuplicateColors" class="ghost icon-button" type="button">
+              <i data-lucide="git-merge"></i>
+              Merge duplicates
+            </button>
           </div>
         </section>
       </main>
