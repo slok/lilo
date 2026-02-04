@@ -11,6 +11,11 @@
       href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600;700&family=Noto+Sans+Symbols+2&display=swap"
       rel="stylesheet"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/solid.min.css"
+      referrerpolicy="no-referrer"
+    />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -158,9 +163,9 @@
               <button class="accordion-trigger" type="button" @click="open = open === 'palette' ? null : 'palette'">
                 <span class="accordion-title">
                   <i data-lucide="palette"></i>
-                  Palette
+                  Colors and symbols
                 </span>
-                <span class="accordion-meta">Color mapping</span>
+                <span class="accordion-meta">Palette & symbols</span>
               </button>
               <div class="accordion-content" x-show="open === 'palette'" x-transition x-cloak>
                 <div class="control-group">
@@ -168,6 +173,17 @@
                     <span>Palette</span>
                     <select id="paletteSelect"></select>
                   </label>
+                </div>
+                <div class="control-group">
+                  <label class="field has-tooltip" data-tip="Choose which symbol collection is used for icon assignments.">
+                    <span>Symbol set</span>
+                    <select id="symbolSet"></select>
+                    <p class="hint">Switching sets resets symbol assignments.</p>
+                  </label>
+                  <button id="randomizeSymbols" class="ghost icon-button symbol-action" type="button">
+                    <i data-lucide="shuffle"></i>
+                    Randomize symbols
+                  </button>
                 </div>
               </div>
             </div>
@@ -297,7 +313,16 @@
         </section>
 
         <section class="panel legend">
-          <h2>Legend</h2>
+          <div class="legend-header">
+            <h2>Legend</h2>
+            <span class="legend-help">
+              <i data-lucide="info"></i>
+              <div class="legend-popover">
+                <div class="legend-popover-title">Legend tips</div>
+                <p>Click a symbol to change the icon for that color.</p>
+              </div>
+            </span>
+          </div>
           <div id="legendList" class="legend-list">
             <p class="hint">Legend will populate after conversion.</p>
           </div>
@@ -308,7 +333,29 @@
             </button>
           </div>
         </section>
+
+        <div id="symbolPicker" class="symbol-picker" aria-hidden="true">
+          <div class="symbol-picker-header">
+            <strong>Choose symbol</strong>
+            <button id="symbolPickerClose" class="ghost icon-button" type="button" aria-label="Close">
+              <i data-lucide="x"></i>
+            </button>
+          </div>
+          <div id="symbolPickerList" class="symbol-picker-grid"></div>
+        </div>
       </main>
+
+      <footer class="site-footer">
+        <a class="footer-link" href="https://github.com/slok/lilo" target="_blank" rel="noreferrer">
+          <i data-lucide="github"></i>
+          Source code
+        </a>
+        <span class="footer-divider" aria-hidden="true">•</span>
+        <a class="footer-link" href="https://slok.dev" target="_blank" rel="noreferrer">
+          <i data-lucide="user"></i>
+          Xabier Larrakoetxea
+        </a>
+      </footer>
 
       <div class="modal" id="paletteSearchModal" aria-hidden="true">
         <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="paletteSearchTitle">

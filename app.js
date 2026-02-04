@@ -1,36 +1,255 @@
-const glyphSymbols = [
-  "♠",
-  "♥",
-  "♦",
-  "♣",
-  "⬤",
-  "⬟",
-  "☘",
-  "■",
-  "▣",
-  "◆",
-  "◇",
-  "▲",
-  "✪",
-  "✖",
-  "⬅",
-  "☃",
-  "◫",
-  "✦",
-  "⛊",
-  "⭘",
-  "✷",
-  "◩",
-  "✹",
-  "✇",
-  "✻",
-  "◁",
-  "✚",
-  "◑",
-  "☂",
-  "⛁",
-  "⚡",
-  "⊙",
+const DEFAULT_SYMBOL_FONT_URL =
+  "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts/hinted/ttf/NotoSansSymbols2/NotoSansSymbols2-Regular.ttf";
+const FA_SYMBOL_FONT_URL =
+  "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.ttf";
+
+const symbolSets = [
+  {
+    id: "classic",
+    name: "Classic symbols",
+    fontFamily: '"Noto Sans Symbols 2", "Segoe UI Symbol", sans-serif',
+    fontWeight: 600,
+    pdfFontUrl: DEFAULT_SYMBOL_FONT_URL,
+    symbols: [
+      "♠",
+      "♥",
+      "♦",
+      "♣",
+      "⬤",
+      "⬟",
+      "☘",
+      "■",
+      "▣",
+      "◆",
+      "◇",
+      "▲",
+      "✪",
+      "✖",
+      "⬅",
+      "☃",
+      "◫",
+      "✦",
+      "⛊",
+      "⭘",
+      "✷",
+      "◩",
+      "✹",
+      "✇",
+      "✻",
+      "◁",
+      "✚",
+      "◑",
+      "☂",
+      "⛁",
+      "⚡",
+      "⊙",
+    ],
+  },
+  {
+    id: "fa-geometric",
+    name: "FA Geometric",
+    fontFamily: '"Font Awesome 6 Free", "Segoe UI Symbol", sans-serif',
+    fontWeight: 900,
+    pdfFontUrl: FA_SYMBOL_FONT_URL,
+    symbols: [
+      "\uf111",
+      "\uf192",
+      "\uf042",
+      "\uf1ce",
+      "\uf0c8",
+      "\uf45c",
+      "\uf14a",
+      "\uf146",
+      "\uf0fe",
+      "\uf2d3",
+      "\uf219",
+      "\uf071",
+      "\u002a",
+      "\u002b",
+      "\uf068",
+      "\uf00d",
+      "\uf00c",
+      "\u003d",
+      "\uf04b",
+      "\uf04c",
+      "\uf04d",
+      "\uf715",
+      "\u0025",
+      "\uf005",
+      "\uf004",
+      "\u{e0b7}",
+      "\uf0d8",
+      "\uf0d7",
+      "\uf0d9",
+      "\uf0da",
+      "\uf139",
+      "\uf13a",
+    ],
+  },
+  {
+    id: "fa-direction",
+    name: "FA Direction",
+    fontFamily: '"Font Awesome 6 Free", "Segoe UI Symbol", sans-serif',
+    fontWeight: 900,
+    pdfFontUrl: FA_SYMBOL_FONT_URL,
+    symbols: [
+      "\uf062",
+      "\uf063",
+      "\uf060",
+      "\uf061",
+      "\uf148",
+      "\uf149",
+      "\uf021",
+      "\uf07d",
+      "\uf07e",
+      "\uf362",
+      "\uf0b2",
+      "\uf3bf",
+      "\uf3be",
+      "\uf124",
+      "\uf601",
+      "\uf14e",
+      "\uf4d7",
+      "\uf276",
+      "\uf3c5",
+      "\uf04e",
+      "\uf04a",
+      "\uf04b",
+      "\uf04c",
+      "\uf04d",
+      "\uf01e",
+      "\uf0e2",
+      "\uf065",
+      "\uf066",
+      "\uf106",
+      "\uf107",
+      "\uf104",
+      "\uf105",
+    ],
+  },
+  {
+    id: "fa-ui",
+    name: "FA UI Essentials",
+    fontFamily: '"Font Awesome 6 Free", "Segoe UI Symbol", sans-serif',
+    fontWeight: 900,
+    pdfFontUrl: FA_SYMBOL_FONT_URL,
+    symbols: [
+      "\uf0f3",
+      "\uf02e",
+      "\uf02d",
+      "\uf133",
+      "\uf030",
+      "\uf328",
+      "\uf017",
+      "\uf0c2",
+      "\uf0e0",
+      "\uf06e",
+      "\uf070",
+      "\uf0b0",
+      "\uf024",
+      "\uf07b",
+      "\uf013",
+      "\uf0ac",
+      "\uf004",
+      "\uf084",
+      "\uf023",
+      "\uf09c",
+      "\uf002",
+      "\uf27a",
+      "\uf001",
+      "\uf1d8",
+      "\uf005",
+      "\uf02b",
+      "\uf164",
+      "\uf007",
+      "\uf0ad",
+      "\uf0e7",
+      "\uf0eb",
+      "\uf5ad",
+    ],
+  },
+  {
+    id: "fa-nature",
+    name: "FA Nature & Weather",
+    fontFamily: '"Font Awesome 6 Free", "Segoe UI Symbol", sans-serif',
+    fontWeight: 900,
+    pdfFontUrl: FA_SYMBOL_FONT_URL,
+    symbols: [
+      "\uf185",
+      "\uf186",
+      "\uf0c2",
+      "\uf73d",
+      "\uf6c4",
+      "\uf2dc",
+      "\uf72e",
+      "\uf75b",
+      "\uf0e9",
+      "\uf06c",
+      "\uf1bb",
+      "\uf4d8",
+      "\uf52d",
+      "\uf6fc",
+      "\uf773",
+      "\uf043",
+      "\uf06d",
+      "\uf1b0",
+      "\uf578",
+      "\uf188",
+      "\uf6be",
+      "\uf6d3",
+      "\uf4ba",
+      "\uf6f0",
+      "\uf6ed",
+      "\uf52e",
+      "\uf700",
+      "\uf717",
+      "\uf5d1",
+      "\uf787",
+      "\uf816",
+      "\uf094",
+    ],
+  },
+  {
+    id: "fa-mixed",
+    name: "FA Mixed (High Contrast)",
+    fontFamily: '"Font Awesome 6 Free", "Segoe UI Symbol", sans-serif',
+    fontWeight: 900,
+    pdfFontUrl: FA_SYMBOL_FONT_URL,
+    symbols: [
+      "\uf0c2",
+      "\uf004",
+      "\uf276",
+      "\uf0b2",
+      "\uf186",
+      "\uf124",
+      "\uf084",
+      "\u{e0b7}",
+      "\uf0e0",
+      "\uf021",
+      "\uf0f3",
+      "\uf4d7",
+      "\uf06d",
+      "\uf362",
+      "\uf185",
+      "\uf06e",
+      "\uf2dc",
+      "\uf0c8",
+      "\uf065",
+      "\uf017",
+      "\uf219",
+      "\uf030",
+      "\uf013",
+      "\uf071",
+      "\uf043",
+      "\uf005",
+      "\uf06c",
+      "\uf1b0",
+      "\uf14e",
+      "\uf0eb",
+      "\uf111",
+      "\u002a",
+    ],
+  },
 ];
 
 const fabricCatalog = [
@@ -52,6 +271,7 @@ const fabricCatalog = [
 ];
 
 const defaultPaletteId = typeof dmcPalette !== "undefined" ? dmcPalette.id : "";
+const defaultSymbolSetId = "fa-mixed";
 
 const paletteCatalog = typeof dmcPalette !== "undefined" ? [dmcPalette] : [];
 
@@ -73,6 +293,7 @@ const state = {
   blurStrength: 0,
   smoothing: false,
   accentSlots: 2,
+  symbolSetId: defaultSymbolSetId,
   fabricType: "aida",
   fabricCount: 14,
   fabricUnit: "inch",
@@ -96,11 +317,14 @@ const state = {
   counts: [],
   symbols: [],
   activeReplaceIndex: null,
+  activeSymbolIndex: null,
+  symbolPickerOpen: false,
 };
 
 const elements = {
   imageUpload: document.getElementById("imageUpload"),
   paletteSelect: document.getElementById("paletteSelect"),
+  symbolSet: document.getElementById("symbolSet"),
   colorLimit: document.getElementById("colorLimit"),
   colorLimitValue: document.getElementById("colorLimitValue"),
   ditherStrength: document.getElementById("ditherStrength"),
@@ -146,7 +370,11 @@ const elements = {
   outputCanvas: document.getElementById("outputCanvas"),
   manageCanvas: document.getElementById("manageCanvas"),
   legendList: document.getElementById("legendList"),
+  randomizeSymbols: document.getElementById("randomizeSymbols"),
   mergeDuplicateColors: document.getElementById("mergeDuplicateColors"),
+  symbolPicker: document.getElementById("symbolPicker"),
+  symbolPickerList: document.getElementById("symbolPickerList"),
+  symbolPickerClose: document.getElementById("symbolPickerClose"),
   status: document.getElementById("status"),
   paletteSearchModal: document.getElementById("paletteSearchModal"),
   paletteSearchInput: document.getElementById("paletteSearchInput"),
@@ -303,6 +531,18 @@ const setStatus = (message) => {
   elements.status.textContent = message;
 };
 
+function updateLoadProjectIcon() {
+  if (!elements.loadProject) return;
+  if (!window.lucide?.createIcons) return;
+  const locked = elements.loadProject.dataset.locked === "true";
+  const iconName = locked ? "external-link" : "folder-open";
+  elements.loadProject.innerHTML = `
+    <i data-lucide="${iconName}"></i>
+    Load project
+  `;
+  window.lucide.createIcons();
+}
+
 const setImageLocked = (locked) => {
   if (elements.imageUpload) {
     elements.imageUpload.disabled = locked;
@@ -312,8 +552,10 @@ const setImageLocked = (locked) => {
     label.classList.toggle("is-disabled", locked);
   }
   if (elements.loadProject) {
-    elements.loadProject.disabled = locked;
+    elements.loadProject.dataset.locked = locked ? "true" : "false";
+    elements.loadProject.dataset.external = locked ? "true" : "false";
   }
+  updateLoadProjectIcon();
 };
 
 const getProjectMeta = () => {
@@ -369,6 +611,11 @@ const updateLegend = () => {
     const symbolBadge = document.createElement("div");
     symbolBadge.className = "symbol-badge";
     symbolBadge.textContent = symbol;
+    symbolBadge.dataset.index = String(index);
+    symbolBadge.classList.add("symbol-picker-trigger");
+    symbolBadge.setAttribute("role", "button");
+    symbolBadge.setAttribute("tabindex", "0");
+    symbolBadge.setAttribute("aria-label", "Change symbol");
 
     const info = document.createElement("div");
     const title = document.createElement("strong");
@@ -431,7 +678,20 @@ const updateLegend = () => {
 
 const getPalette = () => paletteCatalog.find((item) => item.id === state.paletteId);
 
-const getSymbolSet = () => glyphSymbols;
+const getSymbolSetData = () =>
+  symbolSets.find((symbolSet) => symbolSet.id === state.symbolSetId) || symbolSets[0];
+
+const getSymbolSet = () => getSymbolSetData().symbols;
+
+const updateSymbolFontStyles = () => {
+  const symbolSet = getSymbolSetData();
+  if (!symbolSet) return;
+  document.documentElement.style.setProperty("--symbol-font-family", symbolSet.fontFamily);
+  document.documentElement.style.setProperty(
+    "--symbol-font-weight",
+    String(symbolSet.fontWeight || 600)
+  );
+};
 
 const normalizeHex = (hex) => hex.toLowerCase();
 
@@ -807,6 +1067,116 @@ const applySymbolPresetToMapped = () => {
     }
     return symbol;
   });
+};
+
+const syncSymbolsFromPalette = () => {
+  if (!state.mappedPalette.length) return;
+  const symbolSet = getSymbolSet();
+  state.symbols = state.mappedPalette.map((color, index) => {
+    if (!color) return symbolSet[index] || "?";
+    const symbol = color.symbol || symbolSet[index] || "?";
+    color.symbol = symbol;
+    return symbol;
+  });
+};
+
+const renderSymbolPicker = () => {
+  if (!elements.symbolPickerList) return;
+  const symbolSet = getSymbolSet();
+  elements.symbolPickerList.innerHTML = "";
+  const current =
+    state.activeSymbolIndex !== null ? state.symbols[state.activeSymbolIndex] : null;
+  symbolSet.forEach((symbol) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "symbol-picker-button";
+    if (symbol === current) button.classList.add("is-selected");
+    button.dataset.symbol = symbol;
+    button.textContent = symbol;
+    elements.symbolPickerList.appendChild(button);
+  });
+};
+
+const positionSymbolPicker = (anchor) => {
+  if (!elements.symbolPicker || !anchor) return;
+  const spacing = 8;
+  const padding = 12;
+  const rect = anchor.getBoundingClientRect();
+  const pickerRect = elements.symbolPicker.getBoundingClientRect();
+  let left = rect.left;
+  let top = rect.bottom + spacing;
+  if (left + pickerRect.width > window.innerWidth - padding) {
+    left = window.innerWidth - pickerRect.width - padding;
+  }
+  if (top + pickerRect.height > window.innerHeight - padding) {
+    top = rect.top - pickerRect.height - spacing;
+  }
+  left = clampNumber(left, padding, window.innerWidth - pickerRect.width - padding);
+  top = clampNumber(top, padding, window.innerHeight - pickerRect.height - padding);
+  elements.symbolPicker.style.left = `${left}px`;
+  elements.symbolPicker.style.top = `${top}px`;
+};
+
+const openSymbolPicker = (index, anchor) => {
+  if (!elements.symbolPicker) return;
+  if (!state.mappedPalette.length) return;
+  state.activeSymbolIndex = index;
+  renderSymbolPicker();
+  elements.symbolPicker.classList.add("open");
+  elements.symbolPicker.setAttribute("aria-hidden", "false");
+  state.symbolPickerOpen = true;
+  requestAnimationFrame(() => positionSymbolPicker(anchor));
+};
+
+const closeSymbolPicker = () => {
+  if (!elements.symbolPicker) return;
+  elements.symbolPicker.classList.remove("open");
+  elements.symbolPicker.setAttribute("aria-hidden", "true");
+  state.symbolPickerOpen = false;
+  state.activeSymbolIndex = null;
+};
+
+const applySymbolSelection = (index, symbol) => {
+  if (!Number.isFinite(index)) return;
+  if (!state.symbols.length) return;
+  const current = state.symbols[index];
+  if (current === symbol) {
+    closeSymbolPicker();
+    return;
+  }
+  const swapIndex = state.symbols.findIndex((value, i) => i !== index && value === symbol);
+  state.symbols[index] = symbol;
+  if (state.mappedPalette[index]) {
+    state.mappedPalette[index].symbol = symbol;
+  }
+  if (swapIndex >= 0) {
+    state.symbols[swapIndex] = current;
+    if (state.mappedPalette[swapIndex]) {
+      state.mappedPalette[swapIndex].symbol = current;
+    }
+  }
+  renderOutput();
+  updateLegend();
+  closeSymbolPicker();
+};
+
+const randomizeSymbols = () => {
+  if (!state.mappedPalette.length) return;
+  const symbolSet = [...getSymbolSet()];
+  for (let i = symbolSet.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [symbolSet[i], symbolSet[j]] = [symbolSet[j], symbolSet[i]];
+  }
+  state.symbols = state.mappedPalette.map((color, index) => {
+    const symbol = symbolSet[index] || "?";
+    if (color) {
+      color.symbol = symbol;
+    }
+    return symbol;
+  });
+  renderOutput();
+  updateLegend();
+  showToast("Symbols randomized.");
 };
 
 const renderOutputToCanvas = (canvas, scale) => {
@@ -1246,6 +1616,22 @@ const populatePalettes = () => {
   elements.paletteSelect.disabled = false;
 };
 
+const populateSymbolSets = () => {
+  if (!elements.symbolSet) return;
+  elements.symbolSet.innerHTML = "";
+  symbolSets.forEach((symbolSet) => {
+    const option = document.createElement("option");
+    option.value = symbolSet.id;
+    option.textContent = symbolSet.name;
+    elements.symbolSet.appendChild(option);
+  });
+  const exists = symbolSets.some((symbolSet) => symbolSet.id === state.symbolSetId);
+  elements.symbolSet.value = exists ? state.symbolSetId : symbolSets[0]?.id || "";
+  if (!exists && symbolSets[0]) {
+    state.symbolSetId = symbolSets[0].id;
+  }
+};
+
 const populateFabrics = () => {
   elements.fabricType.innerHTML = "";
   fabricCatalog.forEach((fabric) => {
@@ -1281,6 +1667,9 @@ const syncStateFromInputs = () => {
   state.brightness = clampNumber(Number(elements.brightness.value) || 0, -50, 50);
   state.contrast = clampNumber(Number(elements.contrast.value) || 0, -50, 50);
   state.paletteId = elements.paletteSelect.value || "";
+  if (elements.symbolSet) {
+    state.symbolSetId = elements.symbolSet.value || state.symbolSetId;
+  }
   state.blurStrength = Number(elements.blurStrength.value) || 0;
   state.smoothing = elements.smoothing.checked;
   state.accentSlots = clampNumber(Number(elements.accentSlots.value) || 0, 0, 4);
@@ -1295,6 +1684,7 @@ const syncStateFromInputs = () => {
   elements.contrastValue.textContent = state.contrast;
   elements.blurValue.textContent = state.blurStrength;
   updateFabricSizes();
+  updateSymbolFontStyles();
 };
 
 const buildProjectData = () => {
@@ -1310,6 +1700,7 @@ const buildProjectData = () => {
     blurStrength: state.blurStrength,
     smoothing: state.smoothing,
     accentSlots: state.accentSlots,
+    symbolSetId: state.symbolSetId,
     fabricType: state.fabricType,
     fabricCount: state.fabricCount,
     fabricUnit: state.fabricUnit,
@@ -1380,6 +1771,10 @@ const applyProjectSettings = (settings) => {
   if (Number.isFinite(settings.blurStrength)) elements.blurStrength.value = settings.blurStrength;
   if (typeof settings.smoothing === "boolean") elements.smoothing.checked = settings.smoothing;
   if (Number.isFinite(settings.accentSlots)) elements.accentSlots.value = settings.accentSlots;
+  if (settings.symbolSetId && symbolSets.some((symbolSet) => symbolSet.id === settings.symbolSetId)) {
+    elements.symbolSet.value = settings.symbolSetId;
+    state.symbolSetId = settings.symbolSetId;
+  }
   if (settings.fabricType && fabricCatalog.some((fabric) => fabric.id === settings.fabricType)) {
     elements.fabricType.value = settings.fabricType;
     state.fabricType = settings.fabricType;
@@ -1448,7 +1843,7 @@ const loadProject = async (file) => {
   if (project.mappedPixels && project.mappedPalette) {
     state.mappedPixels = project.mappedPixels;
     state.mappedPalette = project.mappedPalette;
-    applySymbolPresetToMapped();
+    syncSymbolsFromPalette();
     updateCountsFromMapped();
     renderOutput();
     updateLegend();
@@ -1513,6 +1908,7 @@ const printPdf = async () => {
       mappedPalette: state.mappedPalette,
       counts: state.counts,
       symbols: state.symbols,
+      symbolFontUrl: getSymbolSetData()?.pdfFontUrl || DEFAULT_SYMBOL_FONT_URL,
       fabricCount: state.fabricCount,
       fabricUnit: state.fabricUnit,
       patternMode: state.patternMode,
@@ -1525,9 +1921,11 @@ const printPdf = async () => {
 };
 
 populatePalettes();
+populateSymbolSets();
 populateFabrics();
 syncStateFromInputs();
 updateLegend();
+updateLoadProjectIcon();
 if (window.lucide?.createIcons) {
   window.lucide.createIcons();
 }
@@ -1541,6 +1939,15 @@ elements.paletteSelect.addEventListener("change", () => {
   syncStateFromInputs();
   updateAll();
 });
+
+if (elements.symbolSet) {
+  elements.symbolSet.addEventListener("change", () => {
+    syncStateFromInputs();
+    applySymbolPresetToMapped();
+    renderOutput();
+    updateLegend();
+  });
+}
 
 elements.colorLimit.addEventListener("input", () => {
   syncStateFromInputs();
@@ -1695,6 +2102,11 @@ elements.saveProject.addEventListener("click", () => {
 });
 
 elements.loadProject.addEventListener("click", () => {
+  const locked = elements.loadProject.dataset.locked === "true";
+  if (locked) {
+    window.open(window.location.href, "_blank", "noopener");
+    return;
+  }
   elements.projectFile.click();
 });
 
@@ -1824,6 +2236,13 @@ window.addEventListener("beforeunload", (event) => {
 });
 
 elements.legendList.addEventListener("click", (event) => {
+  const symbolTrigger = event.target.closest(".symbol-picker-trigger");
+  if (symbolTrigger) {
+    const index = Number(symbolTrigger.dataset.index);
+    if (!Number.isFinite(index)) return;
+    openSymbolPicker(index, symbolTrigger);
+    return;
+  }
   const visibility = event.target.closest(".legend-switch");
   if (visibility) {
     const index = Number(visibility.dataset.index);
@@ -1842,9 +2261,55 @@ elements.legendList.addEventListener("click", (event) => {
   openPaletteSearch(index);
 });
 
+elements.legendList.addEventListener("keydown", (event) => {
+  const isActivate = event.key === "Enter" || event.key === " ";
+  if (!isActivate) return;
+  const symbolTrigger = event.target.closest(".symbol-picker-trigger");
+  if (!symbolTrigger) return;
+  event.preventDefault();
+  const index = Number(symbolTrigger.dataset.index);
+  if (!Number.isFinite(index)) return;
+  openSymbolPicker(index, symbolTrigger);
+});
+
+if (elements.symbolPickerList) {
+  elements.symbolPickerList.addEventListener("click", (event) => {
+    const button = event.target.closest(".symbol-picker-button");
+    if (!button) return;
+    const symbol = button.dataset.symbol;
+    if (!symbol) return;
+    applySymbolSelection(state.activeSymbolIndex, symbol);
+  });
+}
+
+if (elements.symbolPickerClose) {
+  elements.symbolPickerClose.addEventListener("click", () => {
+    closeSymbolPicker();
+  });
+}
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.symbolPickerOpen) {
+    closeSymbolPicker();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  if (!state.symbolPickerOpen) return;
+  if (elements.symbolPicker?.contains(event.target)) return;
+  if (event.target.closest(".symbol-picker-trigger")) return;
+  closeSymbolPicker();
+});
+
 if (elements.mergeDuplicateColors) {
   elements.mergeDuplicateColors.addEventListener("click", () => {
     mergeDuplicateColors();
+  });
+}
+
+if (elements.randomizeSymbols) {
+  elements.randomizeSymbols.addEventListener("click", () => {
+    randomizeSymbols();
   });
 }
 
