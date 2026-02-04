@@ -7,7 +7,7 @@
 
   const A4_WIDTH = 595.28;
   const A4_HEIGHT = 841.89;
-  const SYMBOL_FONT_URL =
+  const DEFAULT_SYMBOL_FONT_URL =
     "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts/hinted/ttf/NotoSansSymbols2/NotoSansSymbols2-Regular.ttf";
   const TILE_COLS = 70;
   const TILE_ROWS = 100;
@@ -480,6 +480,7 @@
     mappedPalette,
     counts,
     symbols,
+    symbolFontUrl,
     fabricCount,
     fabricUnit,
     patternMode,
@@ -496,7 +497,8 @@
     if (window.fontkit) {
       try {
         pdfDoc.registerFontkit(window.fontkit);
-        const fontBytes = await fetch(SYMBOL_FONT_URL).then((res) => res.arrayBuffer());
+        const fontUrl = symbolFontUrl || DEFAULT_SYMBOL_FONT_URL;
+        const fontBytes = await fetch(fontUrl).then((res) => res.arrayBuffer());
         symbolFont = await pdfDoc.embedFont(fontBytes);
       } catch (error) {
         symbolFont = null;
