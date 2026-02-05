@@ -1,50 +1,7 @@
-const DEFAULT_SYMBOL_FONT_URL =
-  "https://cdn.jsdelivr.net/gh/googlefonts/noto-fonts/hinted/ttf/NotoSansSymbols2/NotoSansSymbols2-Regular.ttf";
 const FA_SYMBOL_FONT_URL =
   "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/webfonts/fa-solid-900.ttf";
 
 const symbolSets = [
-  {
-    id: "classic",
-    name: "Classic symbols",
-    fontFamily: '"Noto Sans Symbols 2", "Segoe UI Symbol", sans-serif',
-    fontWeight: 600,
-    pdfFontUrl: DEFAULT_SYMBOL_FONT_URL,
-    symbols: [
-      "♠",
-      "♥",
-      "♦",
-      "♣",
-      "⬤",
-      "⬟",
-      "☘",
-      "■",
-      "▣",
-      "◆",
-      "◇",
-      "▲",
-      "✪",
-      "✖",
-      "⬅",
-      "☃",
-      "◫",
-      "✦",
-      "⛊",
-      "⭘",
-      "✷",
-      "◩",
-      "✹",
-      "✇",
-      "✻",
-      "◁",
-      "✚",
-      "◑",
-      "☂",
-      "⛁",
-      "⚡",
-      "⊙",
-    ],
-  },
   {
     id: "fa-geometric",
     name: "FA Geometric",
@@ -252,6 +209,12 @@ const symbolSets = [
   },
 ];
 
+const isValidSymbolSetId = (symbolSetId) =>
+  symbolSets.some((symbolSet) => symbolSet.id === symbolSetId);
+
+const getValidSymbolSetId = (symbolSetId) =>
+  isValidSymbolSetId(symbolSetId) ? symbolSetId : defaultSymbolSetId;
+
 const fabricCatalog = [
   {
     id: "aida",
@@ -273,7 +236,44 @@ const fabricCatalog = [
 const defaultPaletteId = typeof dmcPalette !== "undefined" ? dmcPalette.id : "";
 const defaultSymbolSetId = "fa-mixed";
 
-const paletteCatalog = typeof dmcPalette !== "undefined" ? [dmcPalette] : [];
+const buildAnchorPalette = (palette, conversionMap) => {
+  if (!palette || !conversionMap) return null;
+  const colors = [];
+  const seen = new Set();
+  palette.colors.forEach((color) => {
+    const anchors = conversionMap[color.code];
+    if (!anchors || !anchors.length) return;
+    anchors.forEach((anchorCode) => {
+      if (!anchorCode || seen.has(anchorCode)) return;
+      seen.add(anchorCode);
+      colors.push({
+        code: anchorCode,
+        name: color.name,
+        hex: color.hex,
+      });
+    });
+  });
+  return {
+    id: "anchor",
+    name: "Anchor",
+    brand: "Anchor",
+    source: "https://www.cyberstitchers.com/stitching_tools/floss_conversion_charts/dmc_to_anchor",
+    colors,
+  };
+};
+
+const anchorPalette =
+  typeof dmcPalette !== "undefined" && typeof dmcToAnchorMap !== "undefined"
+    ? buildAnchorPalette(dmcPalette, dmcToAnchorMap)
+    : null;
+
+const paletteCatalog = [];
+if (typeof dmcPalette !== "undefined") {
+  paletteCatalog.push(dmcPalette);
+}
+if (anchorPalette) {
+  paletteCatalog.push(anchorPalette);
+}
 
 const STITCH_SIZE = 10;
 
@@ -676,7 +676,63 @@ const updateLegend = () => {
   updateMergeDuplicateButton();
 };
 
-const getPalette = () => paletteCatalog.find((item) => item.id === state.paletteId);
+const getPaletteById = (paletteId) => paletteCatalog.find((item) => item.id === paletteId);
+
+const getPalette = () => getPaletteById(state.paletteId);
+
+const buildReverseMap = (map) => {
+  if (!map) return {};
+  const reverse = {};
+  Object.entries(map).forEach(([fromCode, toCodes]) => {
+    if (!Array.isArray(toCodes)) return;
+    toCodes.forEach((toCode) => {
+      if (!toCode) return;
+      if (!reverse[toCode]) {
+        reverse[toCode] = [];
+      }
+      if (!reverse[toCode].includes(fromCode)) {
+        reverse[toCode].push(fromCode);
+      }
+    });
+  });
+  return reverse;
+};
+
+const anchorToDmcMap =
+  typeof dmcToAnchorMap !== "undefined" ? buildReverseMap(dmcToAnchorMap) : {};
+
+const buildPaletteColorData = (palette) =>
+  palette.colors.map((color) => {
+    const rgb = hexToRgb(color.hex);
+    return {
+      ...color,
+      rgb,
+      lab: rgbToLab(rgb),
+    };
+  });
+
+const findColorByCodes = (palette, codes) => {
+  if (!palette || !Array.isArray(codes)) return null;
+  for (const code of codes) {
+    const match = palette.colors.find((color) => String(color.code) === String(code));
+    if (match) return match;
+  }
+  return null;
+};
+
+const findClosestPaletteColor = (paletteColors, targetLab) => {
+  if (!paletteColors.length) return null;
+  let best = paletteColors[0];
+  let bestDistance = Infinity;
+  paletteColors.forEach((color) => {
+    const dist = labDistanceSq(targetLab, color.lab);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      best = color;
+    }
+  });
+  return best;
+};
 
 const getSymbolSetData = () =>
   symbolSets.find((symbolSet) => symbolSet.id === state.symbolSetId) || symbolSets[0];
@@ -1301,6 +1357,78 @@ const updateCountsFromMapped = () => {
   elements.colorLimitValue.textContent = clamped;
 };
 
+const remapPalette = (fromPaletteId, toPaletteId) => {
+  const fromPalette = getPaletteById(fromPaletteId);
+  const toPalette = getPaletteById(toPaletteId);
+  if (!fromPalette || !toPalette || !state.mappedPalette.length) return false;
+
+  const paletteColors = buildPaletteColorData(toPalette);
+  const hiddenSet = getHiddenSet();
+  const nextHidden = new Set();
+
+  const mapColor = (color, symbol) => {
+    if (!color) return null;
+    const code = color.code;
+    let match = null;
+    if (
+      fromPaletteId === "dmc" &&
+      toPaletteId === "anchor" &&
+      code &&
+      typeof dmcToAnchorMap !== "undefined"
+    ) {
+      match = findColorByCodes(toPalette, dmcToAnchorMap[code]);
+    }
+    if (fromPaletteId === "anchor" && toPaletteId === "dmc" && code) {
+      match = findColorByCodes(toPalette, anchorToDmcMap[code]);
+    }
+    if (!match && code) {
+      match = findColorByCodes(toPalette, [code]);
+    }
+    if (!match) {
+      const targetLab = rgbToLab(hexToRgb(color.hex));
+      match = findClosestPaletteColor(paletteColors, targetLab);
+    }
+    if (!match) return null;
+    const rgb = hexToRgb(match.hex);
+    const lab = rgbToLab(rgb);
+    return {
+      ...match,
+      rgb,
+      lab,
+      symbol: symbol || color.symbol || match.symbol,
+    };
+  };
+
+  const remappedPalette = state.mappedPalette.map((color, index) => {
+    if (!color) return null;
+    const symbol = state.symbols[index] || color.symbol || "?";
+    const remapped = mapColor(color, symbol);
+    if (!remapped) return null;
+    if (hiddenSet.has(normalizeHex(color.hex))) {
+      nextHidden.add(normalizeHex(remapped.hex));
+    }
+    return remapped;
+  });
+
+  state.mappedPalette = remappedPalette;
+  state.symbols = remappedPalette.map((color, index) => color?.symbol || state.symbols[index] || "?");
+  state.hiddenColors = Array.from(nextHidden);
+
+  if (state.managePendingColor) {
+    const remappedPending = mapColor(state.managePendingColor, state.managePendingColor.symbol);
+    if (remappedPending) {
+      state.managePendingColor = remappedPending;
+    }
+  }
+
+  updateCountsFromMapped();
+  updateManageToolbar();
+  renderOutput();
+  updateLegend();
+  showToast("Palette updated.");
+  return true;
+};
+
 const mergeDuplicateColors = () => {
   if (!state.mappedPalette.length || !state.mappedPixels) {
     showToast("No colors to merge.");
@@ -1771,9 +1899,10 @@ const applyProjectSettings = (settings) => {
   if (Number.isFinite(settings.blurStrength)) elements.blurStrength.value = settings.blurStrength;
   if (typeof settings.smoothing === "boolean") elements.smoothing.checked = settings.smoothing;
   if (Number.isFinite(settings.accentSlots)) elements.accentSlots.value = settings.accentSlots;
-  if (settings.symbolSetId && symbolSets.some((symbolSet) => symbolSet.id === settings.symbolSetId)) {
-    elements.symbolSet.value = settings.symbolSetId;
-    state.symbolSetId = settings.symbolSetId;
+  if (elements.symbolSet) {
+    const nextSymbolSetId = getValidSymbolSetId(settings.symbolSetId);
+    elements.symbolSet.value = nextSymbolSetId;
+    state.symbolSetId = nextSymbolSetId;
   }
   if (settings.fabricType && fabricCatalog.some((fabric) => fabric.id === settings.fabricType)) {
     elements.fabricType.value = settings.fabricType;
@@ -1826,6 +1955,7 @@ const loadProject = async (file) => {
   } else {
     state.projectMeta = null;
   }
+  const fallbackSymbolSet = !isValidSymbolSetId(project.settings?.symbolSetId);
   applyProjectSettings(project.settings || {});
   setImageLocked(true);
 
@@ -1843,7 +1973,11 @@ const loadProject = async (file) => {
   if (project.mappedPixels && project.mappedPalette) {
     state.mappedPixels = project.mappedPixels;
     state.mappedPalette = project.mappedPalette;
-    syncSymbolsFromPalette();
+    if (fallbackSymbolSet) {
+      applySymbolPresetToMapped();
+    } else {
+      syncSymbolsFromPalette();
+    }
     updateCountsFromMapped();
     renderOutput();
     updateLegend();
@@ -1908,12 +2042,13 @@ const printPdf = async () => {
       mappedPalette: state.mappedPalette,
       counts: state.counts,
       symbols: state.symbols,
-      symbolFontUrl: getSymbolSetData()?.pdfFontUrl || DEFAULT_SYMBOL_FONT_URL,
+      symbolFontUrl: getSymbolSetData()?.pdfFontUrl || FA_SYMBOL_FONT_URL,
       fabricCount: state.fabricCount,
       fabricUnit: state.fabricUnit,
       patternMode: state.patternMode,
       hiddenColors: state.hiddenColors,
       splitMode: elements.pdfSplit.checked,
+      paletteId: state.paletteId,
     });
   } finally {
     setPdfLoading(false);
@@ -1936,7 +2071,19 @@ elements.imageUpload.addEventListener("change", (event) => {
 });
 
 elements.paletteSelect.addEventListener("change", () => {
+  const previousPaletteId = state.paletteId;
   syncStateFromInputs();
+  if (
+    previousPaletteId !== state.paletteId &&
+    state.mappedPalette.length &&
+    state.mappedPixels
+  ) {
+    const remapped = remapPalette(previousPaletteId, state.paletteId);
+    if (!remapped) {
+      updateAll();
+    }
+    return;
+  }
   updateAll();
 });
 
