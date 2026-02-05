@@ -18,6 +18,25 @@
   const GRID_LINE_THIN = 0.3;
   const GRID_LINE_THICK = 0.9;
 
+  const dmcToAnchorMap = window.dmcToAnchorMap || {};
+  const buildReverseMap = (map) => {
+    const reverse = {};
+    Object.entries(map).forEach(([fromCode, toCodes]) => {
+      if (!Array.isArray(toCodes)) return;
+      toCodes.forEach((toCode) => {
+        if (!toCode) return;
+        if (!reverse[toCode]) {
+          reverse[toCode] = [];
+        }
+        if (!reverse[toCode].includes(fromCode)) {
+          reverse[toCode].push(fromCode);
+        }
+      });
+    });
+    return reverse;
+  };
+  const anchorToDmcMap = buildReverseMap(dmcToAnchorMap);
+
   const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
   const hexToRgb = (hex) => {
@@ -40,7 +59,7 @@
     return value.toFixed(2).replace(/\.00$/, "");
   };
 
-  const buildLegendItems = (counts, palette, symbols, hiddenSet) => {
+  const buildLegendItems = (counts, palette, symbols, hiddenSet, paletteId) => {
     const items = [];
     const indexMap = new Map();
     counts.forEach((count, index) => {
@@ -54,10 +73,21 @@
         return;
       }
       const symbol = symbols[index] || "";
+      let dmcCode = "";
+      let anchorCode = "";
+      if (paletteId === "dmc") {
+        dmcCode = color.code || "";
+        anchorCode = (dmcToAnchorMap[color.code] || [])[0] || "";
+      } else if (paletteId === "anchor") {
+        anchorCode = color.code || "";
+        dmcCode = (anchorToDmcMap[color.code] || [])[0] || "";
+      }
       const item = {
         symbol,
         color,
         count,
+        dmcCode,
+        anchorCode,
       };
       indexMap.set(key, item);
       items.push(item);
@@ -141,7 +171,7 @@
     const symbolSize = clamp(cellSize * 0.55, 4, 9);
     const arrowSize = clamp(cellSize * 0.7, 5, 10);
     const useSymbolFont = Boolean(symbolFont);
-    const symbolOffsetY = useSymbolFont ? symbolSize * 0.35 : 0;
+    const symbolOffsetY = useSymbolFont ? symbolSize * 0.2 : 0;
 
     for (let row = 0; row < tileRows; row += 1) {
       const globalRow = tileStartY + row;
@@ -332,20 +362,37 @@
 
     const showSymbols = patternMode !== "color";
     const useSymbolFont = Boolean(symbolFont);
-    const legendSymbolOffsetY = useSymbolFont ? 3.5 : 0;
+    const legendSymbolOffsetY = useSymbolFont ? 1.5 : 0;
 
     const rowHeight = 20;
+    const headerRowHeight = rowHeight;
     const symbolSize = 13;
     const swatchSize = 13;
     const columnGap = 24;
-    const baseColumnWidth = showSymbols ? 280 : 250;
+    const codeColumnWidth = 60;
+    const anchorColumnWidth = 70;
+    const nameColumnWidth = 170;
+    const stitchesColumnWidth = 90;
+    const columnPadding = 10;
+    const swatchBlockWidth = swatchSize + 8;
+    const symbolBlockWidth = showSymbols ? symbolSize + 6 : 0;
+    const textBlockWidth =
+      codeColumnWidth +
+      anchorColumnWidth +
+      nameColumnWidth +
+      stitchesColumnWidth +
+      columnPadding * 3;
+    const baseColumnWidth = symbolBlockWidth + swatchBlockWidth + textBlockWidth;
 
     const titleY = headerTop - headerFontSize;
     const headerLineY = titleY - headerGap;
     const metaStartY = headerLineY - metaLineHeight;
     const bodyTop = metaStartY - metaLineHeight * metaLines.length - bodyGap;
     const availableHeight = bodyTop - margin;
-    const rowsPerColumn = Math.max(1, Math.floor(availableHeight / rowHeight));
+    const rowsPerColumn = Math.max(
+      1,
+      Math.floor((availableHeight - headerRowHeight) / rowHeight)
+    );
     const columnsNeeded = Math.ceil(items.length / rowsPerColumn) || 1;
     const columnsPerPage = Math.max(
       1,
@@ -389,14 +436,54 @@
       let column = 0;
       while (column < columnsPerPage && currentIndex < items.length) {
         const columnX = margin + column * (baseColumnWidth + columnGap);
+        let headerX = columnX;
+        if (showSymbols) {
+          headerX += symbolBlockWidth;
+        }
+        headerX += swatchBlockWidth;
+
+        const dmcX = headerX;
+        const anchorX = dmcX + codeColumnWidth + columnPadding;
+        const nameX = anchorX + anchorColumnWidth + columnPadding;
+        const stitchesX = nameX + nameColumnWidth + columnPadding;
+
+        page.drawText("DMC code", {
+          x: dmcX,
+          y: startY - 6,
+          size: 9,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        page.drawText("Anchor code", {
+          x: anchorX,
+          y: startY - 6,
+          size: 9,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        page.drawText("Color name", {
+          x: nameX,
+          y: startY - 6,
+          size: 9,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+        page.drawText("Stitches", {
+          x: stitchesX,
+          y: startY - 6,
+          size: 9,
+          font: fontBold,
+          color: rgb(0, 0, 0),
+        });
+
         for (let row = 0; row < rowsPerColumn && currentIndex < items.length; row += 1) {
           const item = items[currentIndex];
-          const y = startY - row * rowHeight;
+          const y = startY - headerRowHeight - row * rowHeight;
 
           let x = columnX;
           if (showSymbols) {
             const safeSymbol = useSymbolFont ? item.symbol : item.symbol.replace(/[^\x00-\x7F]/g, "?");
-            const boxOffset = 2;
+            const boxOffset = 4;
             page.drawRectangle({
               x,
               y: y - symbolSize + boxOffset,
@@ -432,11 +519,33 @@
           });
           x += swatchSize + 8;
 
+          const dmcCode = item.dmcCode || "-";
+          const anchorCode = item.anchorCode || "-";
           const name = item.color.name || "";
-          const code = item.color.code ? `${item.color.code} ` : "";
-          const label = `${code}${name} (${item.count} stitches)`;
-          page.drawText(label, {
-            x,
+          const stitches = `${item.count} stitches`;
+          page.drawText(dmcCode, {
+            x: dmcX,
+            y: y - 6,
+            size: 10,
+            font,
+            color: rgb(0, 0, 0),
+          });
+          page.drawText(anchorCode, {
+            x: anchorX,
+            y: y - 6,
+            size: 10,
+            font,
+            color: rgb(0, 0, 0),
+          });
+          page.drawText(name, {
+            x: nameX,
+            y: y - 6,
+            size: 10,
+            font,
+            color: rgb(0, 0, 0),
+          });
+          page.drawText(stitches, {
+            x: stitchesX,
             y: y - 6,
             size: 10,
             font,
@@ -486,6 +595,7 @@
     patternMode,
     hiddenColors = [],
     splitMode = true,
+    paletteId,
   }) => {
     if (!mappedPixels || !gridWidth || !gridHeight) return;
 
@@ -557,7 +667,13 @@
       pageNumber += 1;
     }
 
-    const legendItems = buildLegendItems(counts, mappedPalette, symbols, hiddenSet);
+    const legendItems = buildLegendItems(
+      counts,
+      mappedPalette,
+      symbols,
+      hiddenSet,
+      paletteId
+    );
     const nextPage = drawLegendPages({
       pdfDoc,
       items: legendItems,
