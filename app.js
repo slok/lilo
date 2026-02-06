@@ -277,6 +277,28 @@ if (anchorPalette) {
 
 const STITCH_SIZE = 10;
 
+const imageExtensionsByMimeType = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/jpg": "jpg",
+  "image/webp": "webp",
+  "image/gif": "gif",
+  "image/bmp": "bmp",
+  "image/avif": "avif",
+  "image/svg+xml": "svg",
+};
+
+const imageMimeTypesByExtension = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  webp: "image/webp",
+  gif: "image/gif",
+  bmp: "image/bmp",
+  avif: "image/avif",
+  svg: "image/svg+xml",
+};
+
 const state = {
   image: null,
   imageUrl: null,
@@ -1815,7 +1837,7 @@ const syncStateFromInputs = () => {
   updateSymbolFontStyles();
 };
 
-const buildProjectData = () => {
+const buildProjectData = (image) => {
   const meta = getProjectMeta();
   const settings = {
     palette: state.paletteId,
@@ -1841,15 +1863,41 @@ const buildProjectData = () => {
     schemaVersion: "V1",
     metadata: meta,
     settings,
+    image: image
+      ? {
+          fileName: image.fileName,
+          mimeType: image.mimeType,
+        }
+      : null,
     mappedPixels: state.mappedPixels ? Array.from(state.mappedPixels) : null,
     mappedPalette: state.mappedPalette ? state.mappedPalette : null,
   };
 };
 
-const getImageBlob = async () => {
+const getImageExtensionFromMimeType = (mimeType) => {
+  if (!mimeType) return "png";
+  return imageExtensionsByMimeType[mimeType.toLowerCase()] || "png";
+};
+
+const getImageMimeTypeFromFileName = (fileName) => {
+  if (!fileName) return "";
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (!ext) return "";
+  return imageMimeTypesByExtension[ext] || "";
+};
+
+const getImageAsset = async () => {
   if (!state.imageUrl) return null;
   const response = await fetch(state.imageUrl);
-  return response.blob();
+  const blob = await response.blob();
+  const mimeType = blob.type || "image/png";
+  const extension = getImageExtensionFromMimeType(mimeType);
+
+  return {
+    blob,
+    mimeType,
+    fileName: `image.${extension}`,
+  };
 };
 
 const saveProject = async () => {
@@ -1864,12 +1912,12 @@ const saveProject = async () => {
 
   syncStateFromInputs();
   const zip = new window.JSZip();
-  const project = buildProjectData();
+  const imageAsset = await getImageAsset();
+  const project = buildProjectData(imageAsset);
   zip.file("project.json", JSON.stringify(project, null, 2));
 
-  const imageBlob = await getImageBlob();
-  if (imageBlob) {
-    zip.file("image.png", imageBlob);
+  if (imageAsset?.blob) {
+    zip.file(imageAsset.fileName, imageAsset.blob);
   }
 
   const blob = await zip.generateAsync({ type: "blob" });
@@ -1959,15 +2007,53 @@ const loadProject = async (file) => {
   applyProjectSettings(project.settings || {});
   setImageLocked(true);
 
-  const imageFile = zip.file("image.png");
+  const imageCandidates = [];
+  if (project.image?.fileName) {
+    imageCandidates.push(project.image.fileName);
+  }
+  imageCandidates.push("image.png");
+
+  const zipImageEntries = Object.keys(zip.files).filter((entry) => /^image\.[^/]+$/i.test(entry));
+  zipImageEntries.forEach((entry) => {
+    if (!imageCandidates.includes(entry)) {
+      imageCandidates.push(entry);
+    }
+  });
+
+  let imageFile = null;
+  let imageMimeType = project.image?.mimeType || "";
+  for (const imageCandidate of imageCandidates) {
+    const candidate = zip.file(imageCandidate);
+    if (!candidate) continue;
+    imageFile = candidate;
+    if (!imageMimeType) {
+      imageMimeType = getImageMimeTypeFromFileName(imageCandidate);
+    }
+    break;
+  }
+
   if (imageFile) {
-    const blob = await imageFile.async("blob");
-    const img = await loadImageFromBlob(blob);
-    state.image = img;
-    state.imageWidth = img.naturalWidth;
-    state.imageHeight = img.naturalHeight;
-    state.aspectRatio = state.imageWidth / state.imageHeight;
-    drawSourcePreview();
+    let blob = await imageFile.async("blob");
+    if (imageMimeType && blob.type !== imageMimeType) {
+      blob = new Blob([blob], { type: imageMimeType });
+    }
+
+    try {
+      const img = await loadImageFromBlob(blob);
+      state.image = img;
+      state.imageWidth = img.naturalWidth;
+      state.imageHeight = img.naturalHeight;
+      state.aspectRatio = state.imageWidth / state.imageHeight;
+      drawSourcePreview();
+    } catch (error) {
+      state.image = null;
+      state.imageUrl = null;
+      state.imageWidth = 0;
+      state.imageHeight = 0;
+      state.aspectRatio = 1;
+      drawSourcePreview();
+      setStatus("Project image could not be loaded. Restoring pattern data.");
+    }
   }
 
   if (project.mappedPixels && project.mappedPalette) {
