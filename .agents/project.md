@@ -9,9 +9,12 @@ Lilo is a browser-only cross stitch pattern generator. It converts an uploaded i
 - `app.js`: All client-side logic (image processing, palette mapping, manage editor, project save/load, PDF export trigger).
 - `pdf-export.js`: PDF generation via `pdf-lib` (grid pagination, legend, arrows, page footer with signature).
 - `dmc-palette.js`: DMC color list used for palette mapping.
+- `manifest.json`: PWA web app manifest for installability.
+- `sw.js`: Service worker providing cache-first offline support for all app and CDN assets.
 
 ## Architecture notes
 - **Client-only**: No backend. Everything runs in the browser.
+- **PWA**: Installable as a Progressive Web App. Service worker (`sw.js`) pre-caches all local files and CDN dependencies for full offline support. Bump `CACHE_VERSION` in `sw.js` when deploying changes.
 - **Mapping pipeline**: image → resize to grid → color quantization → map to DMC palette → counts + symbols.
 - **Manage editor**: pick/paint modes, right-click pick, drag painting, undo/redo history. Colors can be added from palette search only when a cell is painted.
 - **Project files**: `.lilo` is a ZIP containing `project.json` + `image.png`. `project.json` includes `schemaVersion: "V1"`, `metadata` (id/createdAt/updatedAt), settings, and optional mapped data for edits.
