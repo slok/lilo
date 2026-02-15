@@ -406,6 +406,7 @@ const elements = {
   manageModal: document.getElementById("manageModal"),
   manageClose: document.getElementById("manageClose"),
   manageMaximize: document.getElementById("manageMaximize"),
+  stickyPreview: document.getElementById("stickyPreview"),
 };
 
 const sourceCtx = elements.sourceCanvas.getContext("2d");
@@ -2324,6 +2325,10 @@ elements.smoothing.addEventListener("change", () => {
 elements.smoothing.addEventListener("input", () => {
   syncStateFromInputs();
   updateAll();
+});
+
+elements.stickyPreview.addEventListener("change", (e) => {
+  document.querySelector(".panel.preview").classList.toggle("sticky", e.target.checked);
 });
 
 elements.printPdf.addEventListener("click", () => {
